@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="城市供水管网 GIS + SCADA 运行管理平台" />
+  <script src="theme.js"></script>
+  <title>城市供水管网 GIS + SCADA</title>
+  <link rel="stylesheet" href="styles/prototype.css?v=20260911devices" />
+  <link rel="stylesheet" href="styles/device-binding.css?v=20260914topology" />
+  <link rel="stylesheet" href="styles/operations.css?v=20260915ops" />
+  <link rel="stylesheet" href="styles/hydraulics.css" />
+  <link rel="stylesheet" href="styles/dark-generated.css" />
+  <link rel="stylesheet" href="styles/theme.css" />
+  <link rel="stylesheet" href="styles/table-pagination.css" />
+  <link rel="stylesheet" href="styles/v2-platform.css">
+  <link rel="stylesheet" href="styles/map-layout.css?v=20261016clean">
+  <link rel="stylesheet" href="styles/standard-product.css?v=20261009nightdaily">
+  <link rel="stylesheet" href="styles/user-hierarchy.css?v=20261015floors5">
+</head>
+<body>
+  <button class="theme-toggle theme-entry-switch" type="button" data-theme-toggle aria-label="切换到暗色">☾ 暗色</button>
+  <main id="entryRoot" class="product-entry-root"></main>
+  <div id="productShell" class="app-shell product-shell" hidden>
+    <header class="app-header product-header">
+      <button class="product-brand-button" type="button" data-page="p02" aria-label="返回运维一张图">
+        <span class="app-brand-mark">水</span>
+        <span class="product-brand-copy"><strong>城市供水管网</strong><small>GIS + SCADA</small></span>
+      </button>
+      <div class="product-context" aria-label="全局业务上下文">
+        <label class="product-context-item"><span>项目</span><select id="projectSelect" class="product-header-select" aria-label="切换城市项目"></select></label>
+        <button class="product-context-button" type="button" data-action="open-projects">项目管理</button>
+        <div class="product-time-context">
+          <button id="timeModeButton" class="product-context-button is-realtime" type="button"><span class="app-status-dot is-success"></span><span id="timeModeText">实时</span></button>
+          <span id="globalTime">更新时间 14:32:18</span>
+        </div>
+      </div>
+      <div class="app-header-actions product-header-actions">
+        <button class="product-header-icon theme-toggle" type="button" data-theme-toggle aria-label="切换到暗色">☾ 暗色</button>
+        <button id="messageCenterButton" class="product-header-icon" type="button" data-action="toggle-message-center" aria-label="打开消息盒子" aria-expanded="false"><span>消息</span><strong id="messageUnreadCount">5</strong></button>
+        <div id="messageCenterRoot"></div>
+        <button class="product-user" type="button" data-action="logout" aria-label="退出登录"><span class="product-avatar">管</span><span>系统管理员</span></button>
+      </div>
+    </header>
+    <div class="app-body product-body">
+      <aside class="app-sidebar product-sidebar" aria-label="功能导航">
+        <nav id="sideNav" class="product-primary-nav" aria-label="一级菜单"></nav>
+        <section id="navDrawer" class="product-nav-drawer" aria-label="二级菜单" aria-hidden="true"></section>
+      </aside>
+      <main id="workspace" class="product-workspace" tabindex="-1"></main>
+    </div>
+  </div>
+  <div id="overlayRoot"></div>
+  <div id="toastRoot" class="product-toast-root" aria-live="polite"></div>
+  <script src="vendor/echarts.min.js?v=5.6.0"></script>
+  <script src="map-viewport.js?v=20260921perf"></script>
+  <script src="map-layout.js?v=20260916"></script>
+  <script src="city-topology.js?v=20260914terminal"></script>
+  <script src="vendor/xlsx.full.min.js"></script>
+  <script src="standard-product.js?v=20261008"></script>
+  <script src="monitoring-history.js?v=20261009"></script>
+  <script src="monitoring-history-ui.js?v=20261009nightdaily"></script>
+  <script src="dma-statistics.js?v=20261009nightdaily"></script>
+  <script src="standard-product-ui.js?v=20261009nightdaily"></script>
+  <script src="dma-geometry.js?v=20261013corridor10m"></script>
+  <script src="topology-editor.js?v=20261016clean"></script>
+  <script src="topology-map-data.js?v=20261015length2"></script>
+  <script src="device-binding.js?v=20261009examples"></script>
+  <script src="dma-plans.js?v=20261013corridor10m"></script>
+  <script src="operations.js?v=20260915ops"></script>
+  <script src="hangzhou-examples.js?v=20261009"></script>
+  <script src="operations-ui.js?v=20260915ops"></script>
+  <script src="hydraulics-data.js?v=20260921"></script>
+  <script src="hydraulics-ui.js?v=20260921perf"></script>
+  <script src="v2-storage.js"></script>
+  <script src="v2-platform.js"></script>
+  <script src="v2-scenarios.js?v=20260921suizhou"></script>
+  <script src="v2-review-pack.js?v=20260921suizhou"></script>
+  <script src="v2-scenario-workspace.js?v=20261015length2"></script>
+  <script src="result-archives.js?v=20260920"></script>
+  <script src="result-archives-ui.js?v=20260920"></script>
+  <script src="data/suizhou-dataset.js?v=20260921"></script>
+  <script src="suizhou-project.js?v=20260921"></script>
+  <script src="data/campus-dataset.js?v=20261013corridor10m"></script>
+  <script src="campus-project.js?v=20261013corridor10m"></script>
+  <script src="v2-platform-ui.js?v=20260921perf"></script>
+  <script src="table-pagination.js?v=20261015floors5"></script>
+  <script src="user-hierarchy.js?v=20261015floors5"></script>
+  <script src="school-access.js?v=20261016school"></script>
+  <script src="app.js?v=20261016clean"></script>
+</body>
+</html>

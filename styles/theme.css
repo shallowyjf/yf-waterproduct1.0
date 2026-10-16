@@ -1,0 +1,39 @@
+.theme-toggle{display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap;min-width:68px;cursor:pointer;font-size:12px;min-height:32px;border-radius:5px}.theme-toggle:focus-visible{outline:2px solid #69b1ff;outline-offset:3px}.theme-entry-switch{display:none;position:fixed;right:24px;top:20px;z-index:1000;padding:8px 12px;border:1px solid var(--color-border);background:var(--color-bg-container);color:var(--color-text)}body:has(.product-login-page):has(#productShell[hidden]) .theme-entry-switch{display:inline-flex}
+:root[data-theme="dark"]{
+ color-scheme:dark;
+ --color-primary:#4a98ff;--color-primary-hover:#75b0ff;--color-primary-active:#287be0;--color-primary-bg:#19334f;--color-primary-border:#315f8d;
+ --color-success:#78ce4b;--color-success-bg:#1b3025;--color-success-border:#315739;--color-success-text:#94d96e;
+ --color-warning:#f5bc4b;--color-warning-bg:#342c1c;--color-warning-border:#69502a;--color-warning-text:#f1c76c;
+ --color-error:#ff7475;--color-error-hover:#ff9393;--color-error-bg:#392326;--color-error-border:#69353a;
+ --color-info:#62a9ff;--color-info-bg:#19334f;--color-info-border:#315f8d;
+ --color-text:#dce5f1;--color-text-secondary:#b0bfd0;--color-text-tertiary:#8a9db5;--color-text-disabled:#64768b;
+ --color-bg-page:#101822;--color-bg-container:#192534;--color-bg-elevated:#202d3e;--color-bg-subtle:#152130;
+ --color-bg-hover:#23344a;--color-bg-active:#263c56;--color-bg-mask:rgba(0,0,0,.65);--color-header-bg:#0b1520;
+ --color-border:#3a4a5e;--color-border-secondary:#2d3b4e;--color-split:rgba(184,204,232,.12);
+ --color-map-bg:#111e2c;--color-map-grid:rgba(119,148,179,.08);--color-map-label:#9eb0c6;--color-map-panel-bg:rgba(25,37,52,.98);
+ --color-focus-ring:rgba(74,152,255,.42);--color-control-focus-shadow:rgba(74,152,255,.18);--color-disabled-bg:#243142;
+ --table-header-bg:#202d3d;--table-row-hover-bg:#25374a;--table-row-selected-bg:#1e3c5b;
+ --shadow-1:0 1px 3px #0005;--shadow-2:0 6px 22px #0006;--shadow-3:0 12px 35px #0008;
+}
+:root[data-theme="dark"] input::placeholder,:root[data-theme="dark"] textarea::placeholder{color:#8395aa}
+:root[data-theme="dark"] input,:root[data-theme="dark"] select,:root[data-theme="dark"] textarea{color-scheme:dark}
+:root[data-theme="dark"] .product-header .theme-toggle{color:#d8e8fa;background:#1b2d42}
+:root[data-theme="dark"] .hy-map svg>rect{fill:var(--color-map-bg)}
+:root[data-theme="dark"] .hy-map svg text{fill:#adbed2}
+:root[data-theme="dark"] .hy-map svg circle[stroke="#fff"]{stroke:#25394e}
+:root[data-theme="dark"] .hy-map svg circle[stroke="#202e45"],:root[data-theme="dark"] .hy-map svg circle[stroke="#172d50"]{stroke:#e9f2ff}
+:root[data-theme="dark"] .hy-trend text{fill:#a7bbd3}
+:root[data-theme="dark"] .hy-trend path{stroke:#40526a}
+:root[data-theme="dark"] .hy-analysis-item.active,:root[data-theme="dark"] .hy-analysis-item:hover{color:#9dcaff;background:#1b3956}
+:root[data-theme="dark"] .hy-ledger tr.active td{background:#1b3956}
+:root[data-theme="dark"] .hy-button.primary,:root[data-theme="dark"] .hy-button.active{background:#246fd0;border-color:#4b8cdd;color:white}
+:root[data-theme="dark"] .hy-root label,:root[data-theme="dark"] .hy-card p,:root[data-theme="dark"] .hy-muted{color:#acbdd2}
+:root[data-theme="dark"] .we-node text,:root[data-theme="dark"] .unified-zone-label,:root[data-theme="dark"] .ops-map-canvas .product-ops-marker .ops-event-label{fill:#bfcee0}
+:root[data-theme="dark"] .unified-topology-svg .unified-monitor .product-monitor-value{stroke:#152536;fill:#d2deed}
+:root[data-theme="dark"] .we-node{--we-node-fill:#24384d}
+:root[data-theme="dark"] .product-message-panel,:root[data-theme="dark"] .product-nav-drawer{box-shadow:0 8px 30px #0006}
+:root[data-theme="dark"] ::-webkit-scrollbar{width:9px;height:9px}:root[data-theme="dark"] ::-webkit-scrollbar-track{background:#142030}:root[data-theme="dark"] ::-webkit-scrollbar-thumb{background:#3e526a;border:2px solid #142030;border-radius:6px}
+:root[data-theme="dark"] .we-node text,:root[data-theme="dark"] .unified-topology-svg .we-node text,:root[data-theme="dark"] .unified-zone-label{stroke:#111e2c;fill:#b9cde4}
+:root[data-theme="dark"] .we-node,:root[data-theme="dark"] .we-node.we-node>circle{fill:#233d56;stroke:#80b3e9}
+:root[data-theme="dark"] .we-node.we-selected>circle,:root[data-theme="dark"] .we-node.we-selected>rect{fill:#684c23;stroke:#ffc163}
+:root[data-theme="dark"] .we-vertex{fill:#263e59}

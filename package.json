@@ -1,0 +1,12 @@
+{
+  "name": "yf-waterproduct-prototype",
+  "version": "1.0.0",
+  "private": true,
+  "description": "城市供水管网 GIS + SCADA 交互原型",
+  "scripts": {
+    "test": "node --test tests/*.test.cjs"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

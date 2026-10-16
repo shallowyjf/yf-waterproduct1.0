@@ -1,0 +1,74 @@
+.we-workspace{height:calc(100vh - 100px);min-height:560px;gap:16px!important}
+.we-workspace .product-page-header{display:flex;align-items:center;justify-content:space-between;gap:16px;flex:none}
+.we-workspace h1{font-size:22px;line-height:30px;margin:0;display:inline-block}
+.we-mode{color:#748092;font-size:12px;margin-left:16px}
+.we-actions{display:flex;gap:8px;align-items:center}
+.we-layout{display:grid;grid-template-columns:252px minmax(0,1fr);flex:1;min-height:0;border:1px solid #e6eaf0;border-radius:8px;overflow:hidden;background:white}
+.we-layout.has-detail{grid-template-columns:252px minmax(0,1fr) 300px}
+.we-left,.we-right{min-width:0;overflow:auto;background:white}
+.we-left{border-right:1px solid #e6eaf0;display:flex;flex-direction:column}
+.we-right{border-left:1px solid #e6eaf0}
+.we-tabs{display:flex;padding:8px 6px;border-bottom:1px solid #edf0f3;gap:3px;flex:none}
+.we-tabs button{font:inherit;font-size:12px;border:0;background:transparent;padding:10px 6px;color:#607084;border-radius:5px;cursor:pointer;white-space:nowrap}
+.we-tabs button.is-active{background:#e9f4ff;color:#1677ff;font-weight:600}
+.we-tabs button:disabled{color:#afb8c4;cursor:default}
+.we-layer-list{padding:12px 16px;border-bottom:1px solid #edf0f3}
+.we-layer-list label{display:flex;align-items:center;gap:9px;height:32px;font-size:13px;cursor:pointer}
+.we-layer-list span{margin-left:auto;color:#8290a0}
+.we-left form[data-we-search]{display:flex;gap:6px;padding:12px}
+.we-left form[data-we-search] input{min-width:0}
+.we-list-head{display:flex;align-items:center;gap:8px;padding:12px 14px;font-size:13px;font-weight:600;border-bottom:1px solid #edf0f3}
+.we-list-head span{margin-left:auto;font-size:12px;color:#7b8794;font-weight:400}
+.we-object-list{overflow:auto;min-height:0;flex:1}
+.we-object-list .product-list-row{min-height:58px;width:100%}
+.we-map{position:relative;min-width:0;min-height:0;background-color:#edf2f6;background-image:linear-gradient(#ffffff60 1px,transparent 1px),linear-gradient(90deg,#ffffff60 1px,transparent 1px);background-size:32px 32px;overflow:hidden}
+.we-map .product-network{height:100%;width:100%;position:absolute;inset:0}
+.we-map .we-svg{height:100%;width:100%;transform:none!important}
+.we-map-toolbar{position:absolute;top:14px;left:14px;right:14px;display:flex;align-items:center;gap:5px;flex-wrap:wrap;pointer-events:none}
+.we-map-toolbar>*{pointer-events:auto}
+.we-map-toolbar span{background:white;padding:8px 12px;border-radius:4px;font-size:12px;box-shadow:0 1px 4px #142f4910}
+.we-map-status{position:absolute;bottom:12px;left:14px;padding:6px 10px;border-radius:4px;background:#ffffffed;color:#748092;font-size:12px;pointer-events:none}
+.we-pipe.product-topology-pipe{fill:none;stroke:var(--we-pipe-color,#79a7dd);stroke-width:var(--we-pipe-width,3px);stroke-linecap:round;cursor:pointer;vector-effect:non-scaling-stroke;pointer-events:stroke}
+.we-pipe:hover{stroke:#1677ff;stroke-width:7}
+.we-pipe.we-selected{stroke:#f29c16;stroke-width:7}
+.we-node{cursor:pointer;fill:white;stroke:#3d82c8;stroke-width:1.6}
+.we-node.we-node>circle{fill:white}
+.we-node text{stroke:none;fill:#4b6176;font-size:9px;pointer-events:none;paint-order:stroke;stroke:#edf2f6;stroke-width:2px;stroke-linejoin:round}
+.we-node.we-selected{stroke:#f29c16;stroke-width:4}
+.we-node.we-selected>circle,.we-node.we-selected>rect{fill:#fff3d7}
+.we-node:hover{stroke:#1677ff}
+.we-zone{fill:#39a9ab20;stroke:#36a3a4;stroke-width:2;cursor:pointer;vector-effect:non-scaling-stroke}
+.we-zone.is-selected{fill:#39a9ab35;stroke:#168f90;stroke-width:3}
+.we-selection{fill:#1677ff16;stroke:#1677ff;stroke-width:2;stroke-dasharray:5 4;pointer-events:none}
+.we-vertex{fill:white;stroke:#1677ff;stroke-width:2;pointer-events:none}
+.we-form{padding:16px;display:flex;flex-direction:column;gap:14px}
+.we-form .app-form-item{margin:0;display:flex;flex-direction:column;gap:7px}
+.we-form .app-input,.we-form .app-select{width:100%;min-width:0}
+.we-form input:disabled,.we-form select:disabled{color:#39495c;background:#f7f9fb;opacity:1}
+.we-form .app-form-label{font-size:12px;color:#768497}
+.we-property{display:flex;justify-content:space-between;gap:14px;font-size:12px}
+.we-property span{color:#768497;flex:none}
+.we-property strong{font-weight:400;overflow-wrap:anywhere;text-align:right}
+.we-member-list{max-height:270px;overflow:auto;border-top:1px solid #edf0f3}
+.we-member-list>div{display:flex;justify-content:space-between;border-bottom:1px solid #edf0f3}
+.we-member-list button{background:transparent;border:0;color:#4779a8;padding:7px 0;cursor:pointer;font-size:12px;text-align:left}
+.we-empty{padding:28px 16px;color:#9aa6b2;font-size:13px;text-align:center}
+.we-issue-row{display:flex;align-items:center;border-bottom:1px solid #edf0f3}
+.we-issue-row>input{margin-left:12px}
+.we-issue-row>button{flex:1;min-width:0}
+.we-left .product-tool-group{padding:14px}
+.we-left .product-tool-grid{gap:8px}
+.we-left .product-tool-grid button{padding:0 8px;font-size:12px}
+.we-left .product-tool-grid button.is-active{background:#e8f3ff;color:#1677ff;border-color:#7bb7fb}
+.we-left .app-form-item{margin-top:12px;display:flex;flex-direction:column;gap:6px}
+.we-left .app-form-label{font-size:12px;color:#758296}
+.we-left .product-check-tool-grid{padding:12px 8px}
+.we-right .product-check-field-row strong{overflow-wrap:anywhere;min-width:0}
+.we-modal-backdrop{position:fixed;inset:0;background:#0b203550;z-index:2000;display:grid;place-items:center}
+.we-modal{background:white;border-radius:10px;width:440px;max-width:90vw;padding:24px;box-shadow:0 16px 64px #082b3d40}
+.we-modal h2{font-size:18px;margin:0 0 16px}
+.we-modal p{font-size:14px;line-height:1.8;color:#657487;margin-bottom:24px}
+.we-modal footer{display:flex;justify-content:flex-end;gap:8px}
+@media(max-width:1100px){.we-layout{grid-template-columns:220px minmax(0,1fr)}.we-layout.has-detail{grid-template-columns:220px minmax(0,1fr) 270px}.we-actions{gap:4px}.we-actions .app-button{padding:0 10px}.we-tabs button{font-size:11px;padding:9px 4px}}
+.product-map-compare-canvas .we-node{pointer-events:bounding-box;cursor:pointer}
+.product-map-compare-canvas .we-zone{cursor:pointer}

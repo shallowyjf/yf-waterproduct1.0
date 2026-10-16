@@ -1,0 +1,20 @@
+const {test}=require('node:test'),assert=require('node:assert/strict'),V=require('../v2-scenarios.js'),Pack=require('../v2-review-pack.js');
+global.window={};require('../city-topology.js');
+const W=window,data=W.addInteriorUsers(W.addNorthwestUsers(W.repairLogisticsBranch(W.normalizeTopologyTerminals(W.repairTopologyConnections(W.createCityTopology())))));
+const version={id:'T8',name:'城市管网',status:'使用中',published:'2026-09-11'},defaults=require('../hydraulics-data.js').defaults(data);
+const samples=[8,14,20].map((h,i)=>({id:'T8@'+h,topology:'T8',time:`2026-09-16T${h}:00:00+08:00`.replace('T8:','T08:'),quality:'GOOD',source:'标准示例时序',demand:[3240,2280,2640][i],sources:defaults.sources}));
+const original=V.empty();original.scenes.push({id:'user-scene',name:'用户已有方案'});original.jobs.push({id:'user-job',status:'计算中',submittedAt:0});
+const before=JSON.stringify(original),topology=JSON.stringify(data),db=Pack.create(original,version,data,samples,Date.parse('2026-09-17T08:00:00+08:00'));
+const run=code=>db.runs.find(r=>r.id===db.reviewPack.records.find(x=>x.code===code).runIds[0]);
+test('standard pack is additive, idempotent and preserves published topology and existing work',()=>{assert.equal(JSON.stringify(original),before);assert.equal(JSON.stringify(data),topology);assert.equal(db.reviewPack.records.length,10);assert.equal(db.runs.length,14);assert.equal(db.jobs.find(j=>j.id==='user-job').status,'计算中');assert.equal(Pack.create(db,version,data,samples),db);assert.equal(db.plans[0].status,'草稿');});
+test('prepared scenarios contain measurable changes and emergency isolation agrees with graph',()=>{
+ const f=r=>r.frames[r.availableHours[0]],users=data.nodes.filter(n=>n.type==='user');
+ assert(users.some(n=>f(run('02')).nodes[n.id].pressure<f(run('01')).nodes[n.id].pressure));
+ assert.equal(run('03').snapshot.nodes.length,data.nodes.length+2);assert.equal(run('03').snapshot.pipes.length,data.pipes.length+2);
+ assert(run('04').impact.disconnected>0);assert.equal(run('05').impact.remainingLeak,260);assert.equal(run('06').impact.remainingLeak,100);assert.equal(run('07').impact.remainingLeak,0);assert(run('07').impact.isolated);
+ assert.equal(run('07').impact.disconnected,db.reviewPack.target.users.length);
+ const low=r=>users.filter(n=>f(r).nodes[n.id].chlorine<.2).length;
+ assert(low(run('08'))>0);assert(low(run('09'))<low(run('08')));
+ assert(run('10').findings.length>0);assert(run('10').findings.every(n=>f(run('10')).nodes[n.id].tracer>0));
+});
+test('missing time-series fails without partial seeding',()=>{assert.throws(()=>Pack.create(original,version,data,samples.slice(0,1)),/时序/);assert.equal(JSON.stringify(original),before);});

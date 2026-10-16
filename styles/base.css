@@ -1,0 +1,27 @@
+html { background: var(--color-bg-page); }
+body {
+  font-family: var(--font-family);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-base);
+  color: var(--color-text);
+  background: var(--color-bg-page);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection { color: var(--color-text-light); background: var(--color-primary); }
+
+:focus-visible {
+  outline: 3px solid var(--color-focus-ring);
+  outline-offset: 1px;
+}
+
+.app-link { color: var(--color-primary); cursor: pointer; transition: color var(--motion-base) var(--motion-ease); }
+.app-link:hover { color: var(--color-primary-hover); }
+
+.app-page-title { font-size: var(--font-size-title); line-height: 28px; font-weight: var(--font-weight-semibold); }
+.app-section-title { font-size: var(--font-size-lg); line-height: var(--line-height-lg); font-weight: var(--font-weight-semibold); }
+.app-text-secondary { color: var(--color-text-secondary); }
+.app-text-tertiary { color: var(--color-text-tertiary); }
+.app-text-danger { color: var(--color-error); }
+.app-text-success { color: var(--color-success); }

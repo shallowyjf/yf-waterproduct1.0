@@ -1,0 +1,22 @@
+# Dependencies and local environments
+node_modules/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.env
+.env.*
+!.env.example
+
+# Generated screenshots, reports and runtime logs
+artifacts/
+tests/evidence/
+playwright-report/
+test-results/
+*.log
+*.tmp
+.DS_Store
+Thumbs.db
+
+# Local downloaded solver archive (not used by the static prototype)
+vendor/*.tgz
