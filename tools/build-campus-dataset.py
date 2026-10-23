@@ -497,7 +497,8 @@ def build(source, width_m=10):
                "project": {"id": "PRJ-SH-CAMPUS", "name": "上海技术学院漏损控制项目", "province": "上海市",
                            "city": "上海市", "district": "待确认", "status": "建设中", "owner": "—", "updated": "2026-10-13"},
                "snapshot": snapshot, "provenance": provenance, "metadata": metadata, "summary": summary}
-    return dataset
+    from campus_revision import revise_campus
+    return revise_campus(dataset, stamp_boundary_signatures, width_m)
 
 
 def main():

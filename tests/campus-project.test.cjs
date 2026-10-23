@@ -73,14 +73,15 @@ test('both independent supply systems remain separate with their original pendin
   assert.equal(s.nodes.filter(n=>n.elevation===null).length,18);
 });
 
-test('the four DMA memberships contain exactly the requested buildings without overlaps or invalid IDs',()=>{
+test('the five DMA memberships contain exactly the requested buildings without overlaps or invalid IDs',()=>{
   const s=C.snapshot(),expected=[
     ['DMA-01',['宿舍1','宿舍2','宿舍3','北教学楼'],['22','JS625','JS42','17']],
     ['DMA-02',['体育馆厕所1','体育馆厕所2','花房'],['6','5','4']],
     ['DMA-03',['南教学楼','食堂'],['JS39','2']],
-    ['DMA-04',['宿舍4','宿舍5','宿舍6'],['JS615','JS608','JS612']]
+    ['DMA-04',['宿舍4','宿舍5','宿舍6'],['JS615','JS608','JS612']],
+    ['DMA-05',['垃圾房'],['15']]
   ],allBuildings=expected.flatMap(x=>x[2]);
-  assert.equal(s.zones.length,4);
+  assert.equal(s.zones.length,5);
   for(const [id,names,ids] of expected){
     const z=s.zones.find(z=>z.id===id);assert.deepEqual(z.buildings,names);assert.deepEqual(z.buildingNodeIds,ids);
     assert.deepEqual(z.nodeIds.filter(id=>allBuildings.includes(id)).sort(),[...ids].sort());
@@ -89,8 +90,8 @@ test('the four DMA memberships contain exactly the requested buildings without o
     assert.ok(editor(s).zonePoints(z).length>=3);
   }
   const stats=window.DMAPlans.stats(s,s.zones);
-  assert.equal(stats.overlap,0);assert.equal(stats.invalid,0);assert.equal(stats.nodes,75);assert.equal(stats.pipes,75);
-  assert.equal(stats.unassignedNodes,27);assert.equal(stats.unassignedPipes,25);
+  assert.equal(stats.overlap,0);assert.equal(stats.invalid,0);assert.equal(stats.nodes,102);assert.equal(stats.pipes,100);
+  assert.equal(stats.unassignedNodes,0);assert.equal(stats.unassignedPipes,0);
   const assignedNodes=new Set(s.zones.flatMap(z=>z.nodeIds)),assignedPipes=new Set(s.zones.flatMap(z=>z.pipeIds));
   assert.deepEqual(s.nodes.filter(n=>!assignedNodes.has(n.id)).map(n=>n.id).sort(),[...s.metadata.sharedNodeIds].sort());
   assert.deepEqual(s.pipes.filter(p=>!assignedPipes.has(p.id)).map(p=>p.id).sort(),[...s.metadata.sharedPipeIds].sort());
@@ -102,7 +103,7 @@ test('DMA-03 outlet is DMA-04 inlet with a single hypothetical meter and no dupl
   assert.deepEqual(a.outletPipeIds,[boundary]);assert.deepEqual(b.inletPipeIds,[boundary]);
   assert.ok(!a.pipeIds.includes(boundary)&&b.pipeIds.includes(boundary));
   assert.match(a.balanceFormula,/入口.*出口/);
-  const meters=s.metadata.boundaryMeterPlans;assert.equal(meters.length,4);
+  const meters=s.metadata.boundaryMeterPlans;assert.equal(meters.length,5);
   assert.equal(meters.filter(m=>m.pipeId===boundary).length,1);
   assert.ok(meters.every(m=>m.hypothetical===true&&m.installed===false&&m.reading===null));
   for(const z of s.zones){
@@ -113,7 +114,7 @@ test('DMA-03 outlet is DMA-04 inlet with a single hypothetical meter and no dupl
   }
 });
 
-test('four saved polygon boundaries enclose all original member pipes and have no positive-area spatial overlaps',()=>{
+test('five saved polygon boundaries enclose all original member pipes and have no positive-area spatial overlaps',()=>{
   const s=C.snapshot(),before=clone(s),e=editor(s),model=window.TopologyMapData.build(s,e);
   assert.deepEqual(G.validateZones(s),[]);
   for(const z of s.zones){
@@ -142,7 +143,7 @@ test('four saved polygon boundaries enclose all original member pipes and have n
 test('pipe corridor is ten metres wide in source units on isolated straight sections, not ten display pixels',()=>{
   const s=C.snapshot(),joint=s.nodes.find(n=>n.id==='2'),generation=s.metadata.boundaryGeneration;let sections=0;
   assert.equal(generation.widthM,10);assert.equal(generation.halfWidthM,5);assert.ok(generation.bufferRadiusM>=5&&generation.bufferRadiusM<=5.03);
-  assert.equal(generation.junctionClips.length,1);assert.equal(generation.junctionClips[0].nodeId,'2');assert.equal(generation.junctionClips[0].splitAxis,'sourceX');assert.equal(generation.junctionClips[0].splitValueM,joint.sourceX);assert.ok(generation.junctionClips[0].widthException);
+  assert.equal(generation.junctionClips.length,3);assert.equal(generation.junctionClips[0].nodeId,'2');assert.equal(generation.junctionClips[0].splitAxis,'sourceX');assert.equal(generation.junctionClips[0].splitValueM,joint.sourceX);assert.ok(generation.junctionClips[0].widthException);
   for(const z of s.zones){
     const segments=sourceSegments(s,z);let count=0;
     for(const segment of segments)for(const t of [.25,.5,.75]){
@@ -151,7 +152,7 @@ test('pipe corridor is ten metres wide in source units on isolated straight sect
       const center=[segment.a[0]+t*dx,segment.a[1]+t*dy];
       if(segments.some(other=>other!==segment&&distanceToSegment(center,other.a,other.b)<=12))continue;
       // The two serial DMA zones explicitly divide their shared junction; check regular branches away from it.
-      if(['DMA-03','DMA-04'].includes(z.id)&&Math.abs(center[0]-joint.sourceX)<10)continue;
+      if(generation.junctionClips.some(j=>j.zoneIds.includes(z.id)&&Math.hypot(center[0]-j.sourcePoint[0],center[1]-j.sourcePoint[1])<12))continue;
       for(const side of [-1,1]){
         const insideAt=distance=>G.pointInPolygon(displaySourcePoint(s,[center[0]-side*dy/length*distance,center[1]+side*dx/length*distance]),z.boundary);
         assert.equal(insideAt(4.99),true,`${z.id} ${segment.id} side ${side} is at least 5 m`);
@@ -161,7 +162,7 @@ test('pipe corridor is ten metres wide in source units on isolated straight sect
       }
       count++;sections++;
     }
-    assert.ok(count>=2,`${z.id} needs multiple independent ordinary cross sections`);
+    assert.ok(count>=(z.id==='DMA-05'?1:2),`${z.id} needs multiple independent ordinary cross sections`);
   }
   assert.ok(sections>=20);
 });
@@ -170,7 +171,8 @@ test('tight corridors remove broad empty envelopes and substantially reduce disp
   const s=C.snapshot(),scale=s.metadata.displayTransform.scale;let total=0,emptyChecks=0;
   for(const z of s.zones){
     const area=G.polygonArea(z.boundary)/(scale*scale),segments=sourceSegments(s,z),sourcePoints=segments.flatMap(p=>[p.a,p.b]);total+=area;
-    assert.ok(area<G.polygonArea(G.hull(G.pointsForZone(s,z)))/(scale*scale),z.id);
+    // A short two-pipe branch has a tiny centreline hull; compare its buffered hull instead.
+    assert.ok(area<z.boundaryPreviousAreaM2,z.id);
     const xs=sourcePoints.map(p=>p[0]),ys=sourcePoints.map(p=>p[1]),xmin=Math.min(...xs),xmax=Math.max(...xs),ymin=Math.min(...ys),ymax=Math.max(...ys);let empty=0;
     for(let i=1;i<10;i++)for(let j=1;j<10;j++){
       const point=[xmin+(xmax-xmin)*i/10,ymin+(ymax-ymin)*j/10];
@@ -287,4 +289,39 @@ test('app topology editor uses the requested saved campus version and does not r
   assert.equal(e.key,D.projectId+':CAMPUS-V2');assert.equal(e.s.data.nodes[0].name,'新版本修改');
   ctx.state.selectedTopology=D.topologyId;assert.equal(ctx.topologyEditor().s.data.nodes[0].name,'原版本修改');
   assert.deepEqual(JSON.parse(st.getItem('water-editor:'+originalKey)),edited);
+});
+
+test('campus layout upgrade preserves labels and geometry and keeps the previous active plan as a backup',()=>{
+  const st=storage(),data=C.snapshot(),catalog=C.store(),bucket=catalog.dmaPlans[D.topologyId];
+  const previous=data.metadata.previousDMAMembership;
+  data.zones=data.zones.filter(z=>previous[z.id]).map(z=>({...z,...clone(previous[z.id])}));
+  delete data.metadata.dmaLayoutRevision;delete data.metadata.monitoringPlan;
+  data.nodes[0].name='保留节点名称';data.zones[0].name='保留分区名称';data.zones[0].color='#123456';
+  bucket.items[0].zones=clone(data.zones);const beforePlan=clone(bucket.items[0]);
+  const dataKey='water-editor:'+D.projectId+':'+D.topologyId,catalogKey='water-topology-store:'+D.projectId;
+  st.setItem(dataKey,JSON.stringify(data));st.setItem(catalogKey,JSON.stringify(catalog));
+  C.initialize(st);
+  const actual=JSON.parse(st.getItem(dataKey)),plans=JSON.parse(st.getItem(catalogKey)).dmaPlans[D.topologyId];
+  assert.deepEqual(actual.nodes,data.nodes);assert.deepEqual(actual.pipes,data.pipes);
+  assert.equal(actual.zones[0].name,'保留分区名称');assert.equal(actual.zones[0].color,'#123456');
+  assert.equal(actual.zones.length,5);assert.equal(plans.items.length,2);
+  assert.deepEqual(plans.items[1].zones,beforePlan.zones);assert.equal(plans.items[1].layoutBackup,true);
+  assert.deepEqual(plans.items[0].zones,actual.zones);assert.deepEqual(G.validateZones(actual),[]);
+  assert.equal(C.initialize(st),false);
+});
+
+test('requested campus monitors attach to both sources and the four specified pipes without extra synthetic locations',()=>{
+  require('../dma-demo.js');
+  const data=C.snapshot(),before=clone(data),model=window.TopologyMapData.build(data,editor(data));
+  window.DMADemo.monitors(model);
+  assert.deepEqual(model.monitors.map(m=>[m.id,m.type,m.hostId,m.zoneIds]),[
+    ['Q-S2','flow','JS642',['DMA-01']],['P-S2','pressure','JS642',['DMA-01']],
+    ['Q-L002','flow','CAMPUS-P-L002',['DMA-05']],['Q-25','flow','CAMPUS-P-25',['DMA-01']],
+    ['Q-S1','flow','JS52-1',['DMA-03']],['P-S1','pressure','JS52-1',['DMA-03']],
+    ['Q-29','flow','CAMPUS-P-29',['DMA-04']],['Q-3','flow','CAMPUS-P-3',['DMA-03']]
+  ]);
+  for(const m of model.monitors){assert.deepEqual([m.x,m.y],model.position(m.hostId));assert.equal(m.source,'DMA演示数据');}
+  window.DMADemo.monitors(model);assert.equal(model.monitors.length,8);assert.deepEqual(data,before);
+  const bound=window.TopologyMapData.build(data,editor(data));bound.monitors.push({id:'REAL-S2',hostId:'JS642',type:'flow',numeric:99});
+  window.DMADemo.monitors(bound);assert.equal(bound.monitors.filter(m=>m.hostId==='JS642'&&m.type==='flow').length,1);assert.equal(bound.monitors[0].numeric,99);
 });
