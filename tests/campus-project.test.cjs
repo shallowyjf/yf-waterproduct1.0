@@ -8,7 +8,9 @@ const G=require('../dma-geometry.js');window.DMAGeometry=G;
 global.WaterHydraulics=require('../hydraulics-data.js');
 global.WaterV2=require('../v2-scenarios.js');
 global.WaterOperations=require('../operations.js');
-const D=require('../data/campus-dataset.js');
+// Historical import/migration regression suite. Current NET is independently
+// covered by campus-net.test.cjs; the old 5-DMA snapshot remains recoverable.
+const D=require('../data/archives/campus-before-20261026/campus-dataset.js');
 require('../campus-project.js');
 require('../topology-editor.js');
 require('../topology-map-data.js');

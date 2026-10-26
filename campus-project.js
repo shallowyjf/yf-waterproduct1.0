@@ -5,16 +5,68 @@
   if(!D)return;
   const clone=value=>JSON.parse(JSON.stringify(value));
   const is=data=>data?.sourceDataset===D.id;
-  const pending='水源水头、节点需水量及真实监测数据待补充，当前仅建立拓扑与假定 DMA 分区，暂无水力或水质计算结果。';
+  const pending='水源边界、水源水头、节点需水量及真实监测数据待补充，当前仅建立拓扑，暂无水力或水质计算结果。';
   const date=D.project?.updated?.slice(0,10)||'2026-10-13';
+  const revision=D.snapshot.metadata?.topologyRevision;
+  const planName=revision?'最新拓扑 · DMA分区待复核':'校园 DMA 五分区方案';
+  const durableBackups=new Map();
+  let preparationError=null;
+  function decodeSnapshot(raw){
+    const value=typeof raw==='string'?JSON.parse(raw):raw;
+    if(!value?.campusBackupId)return value;
+    const backup=durableBackups.get(value.campusBackupId);
+    if(!backup)throw Error('更新前拓扑备份尚未读取，请刷新页面后重试');
+    return clone(backup.snapshot);
+  }
+  async function prepareStorage(storage=root.localStorage,indexedDB=root.indexedDB){
+    if(!revision||!indexedDB)return;
+    let db;
+    try{
+      db=await new Promise((resolve,reject)=>{
+        const request=indexedDB.open('water-campus-archives-v1',1);
+        request.onupgradeneeded=()=>request.result.createObjectStore('backups',{keyPath:'id'});
+        request.onsuccess=()=>resolve(request.result);
+        request.onerror=()=>reject(request.error||Error('无法打开拓扑备份库'));
+        request.onblocked=()=>reject(Error('拓扑备份库被其他窗口占用，请关闭旧窗口后重试'));
+      });
+      const records=await new Promise((resolve,reject)=>{
+        const request=db.transaction('backups','readonly').objectStore('backups').getAll();
+        request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);
+      });
+      for(const record of records)durableBackups.set(record.id,record);
+      preparationError=null;
+      const raw=storage.getItem('water-editor:'+D.projectId+':'+D.topologyId);
+      if(!raw)return;
+      const snapshot=decodeSnapshot(raw);
+      if(snapshot.metadata?.topologyRevision===revision)return;
+      const id='water-campus-backup:'+D.projectId+':before-'+revision;
+      if(durableBackups.has(id))return;
+      const read=(key,fallback)=>{const value=storage.getItem(key);return value===null?fallback:JSON.parse(value);};
+      const record={id,created:date,replacedBy:revision,snapshot,
+        catalog:read('water-topology-store:'+D.projectId,store()),
+        devices:read('water-devices:'+D.projectId,[]),
+        operations:read('water-operations:v1:'+D.projectId,{...root.WaterOperations.empty(),seeded:true})};
+      // Wait for the transaction commit, not merely the add request. A failed
+      // persistent backup must leave every existing localStorage value intact.
+      await new Promise((resolve,reject)=>{
+        const tx=db.transaction('backups','readwrite'),objects=tx.objectStore('backups'),existing=objects.get(id);
+        existing.onsuccess=()=>{if(existing.result)durableBackups.set(id,existing.result);else objects.add(record);};
+        tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error||Error('拓扑备份写入失败'));tx.onabort=()=>reject(tx.error||Error('拓扑备份事务已取消'));
+      });
+      if(!durableBackups.has(id))durableBackups.set(id,record);
+      preparationError=null;
+    }catch(error){preparationError=error;throw error;}
+    finally{db?.close();}
+  }
   function store(){return {
-    versions:[{id:D.topologyId,name:'上海技术学院 · 导入拓扑',status:'使用中',published:date}],
+    versions:[{id:D.topologyId,name:revision?'上海技术学院 · 2026-10-26最新拓扑':'上海技术学院 · 导入拓扑',status:'使用中',published:date}],
     bindings:[],bindingHistory:[],epochs:[{topology:D.topologyId,start:date,end:null}],
-    dmaPlans:{[D.topologyId]:{activeId:'CAMPUS-DMA-PLAN-1',items:[{id:'CAMPUS-DMA-PLAN-1',name:'校园 DMA 五分区方案',zones:clone(D.snapshot.zones),created:date,updated:date,source:null,hypothetical:true}]}},
+    dmaPlans:{[D.topologyId]:{activeId:'CAMPUS-DMA-PLAN-1',items:[{id:'CAMPUS-DMA-PLAN-1',name:planName,zones:clone(D.snapshot.zones),created:date,updated:date,source:null,hypothetical:true}]}},
     sourceDataset:D.id,connectionRepair20260914:true,terminalRepair20260914:true,
     logisticsRepair20260914:true,northwestUsers20260914:true,versionCleanupT8:true,interiorUsers20260914:true
   };}
   function initialize(storage=root.localStorage){
+    if(preparationError)return false;
     const values=[
       ['water-editor:'+D.projectId+':'+D.topologyId,D.snapshot],
       ['water-topology-store:'+D.projectId,store()],
@@ -23,8 +75,43 @@
     ];
     const changes=new Map(values.filter(([key])=>storage.getItem(key)===null).map(([key,value])=>[key,JSON.stringify(value)]));
     const read=key=>JSON.parse(changes.get(key)||storage.getItem(key));
+    if(revision){
+      const dataKey=values[0][0],storeKey=values[1][0],data=read(dataKey),catalog=read(storeKey);
+      if(data.metadata?.topologyRevision!==revision){
+        // This user-authorized replacement keeps an exact recoverable copy of
+        // the previous local topology and every plan/binding before activating it.
+        const archiveId=D.topologyId+'-before-'+revision;
+        const archiveKey='water-editor:'+D.projectId+':'+archiveId;
+        const backupKey='water-campus-backup:'+D.projectId+':before-'+revision;
+        const durable=durableBackups.get(backupKey);
+        const reference={campusBackupId:backupKey,storage:'indexeddb:water-campus-archives-v1',archiveId};
+        if(storage.getItem(archiveKey)===null)changes.set(archiveKey,JSON.stringify(durable?reference:data));
+        if(storage.getItem(backupKey)===null)changes.set(backupKey,JSON.stringify(durable?reference:{
+          created:date,replacedBy:revision,snapshot:data,catalog,
+          devices:read(values[2][0]),operations:read(values[3][0])
+        }));
+        const next=clone(catalog),fresh=store();
+        next.versions ||= [];
+        if(!next.versions.some(v=>v.id===archiveId))next.versions.push({id:archiveId,name:'上海技术学院 · 更新前拓扑备份',status:'已归档',published:date,sourceRevision:data.metadata?.topologyRevision||data.sampleRevision});
+        next.versions=next.versions.map(v=>v.id===D.topologyId?{...v,...fresh.versions[0]}:v);
+        if(!next.versions.some(v=>v.id===D.topologyId))next.versions.unshift(fresh.versions[0]);
+        next.dmaPlans ||= {};
+        if(next.dmaPlans[D.topologyId]&&!next.dmaPlans[archiveId])next.dmaPlans[archiveId]=clone(next.dmaPlans[D.topologyId]);
+        next.dmaPlans[D.topologyId]=fresh.dmaPlans[D.topologyId];
+        // Even unchanged IDs can have changed meaning. Old bindings belong to
+        // the archived version until users explicitly bind the new topology.
+        next.bindings=(next.bindings||[]).map(b=>b.key?.split('|')[0]===D.topologyId?{...b,key:[archiveId,...b.key.split('|').slice(1)].join('|'),archivedForReplacement:revision}:b);
+        next.bindingHistory=(next.bindingHistory||[]).map(b=>b.key?.split('|')[0]===D.topologyId?{...b,key:[archiveId,...b.key.split('|').slice(1)].join('|'),archivedForReplacement:revision}:b);
+        next.epochs=(next.epochs||[]).map(e=>e.topology===D.topologyId?{...e,topology:archiveId,end:e.end||date}:e);
+        next.epochs.push({topology:D.topologyId,start:date,end:null});
+        next.sourceDataset=D.id;
+        next.topologyRevision=revision;
+        changes.set(dataKey,JSON.stringify(D.snapshot));
+        changes.set(storeKey,JSON.stringify(next));
+      }
+    }
     const geometry=root.DMAGeometry;
-    if(geometry?.boundarySignature){
+    if(geometry?.boundarySignature&&!revision){
       const dataKey=values[0][0],storeKey=values[1][0],data=read(dataKey),catalog=read(storeKey);
       const revision=D.snapshot.metadata?.dmaLayoutRevision;
       if(revision&&data.metadata?.dmaLayoutRevision!==revision){
@@ -74,8 +161,16 @@
       }
     }
     const written=[],original=new Map([...changes.keys()].map(key=>[key,storage.getItem(key)]));
-    try{for(const [key,value] of changes){storage.setItem(key,value);written.push(key);}}
-    catch(error){for(const key of written){const value=original.get(key);value===null?storage.removeItem(key):storage.setItem(key,value);}throw error;}
+    // Shrinking the current snapshot first frees room on nearly full sites.
+    // The durable backup is already committed before any browser write occurs.
+    const ordered=[...changes].sort(([a,av],[b,bv])=>(av.length-(original.get(a)?.length||0))-(bv.length-(original.get(b)?.length||0)));
+    try{for(const [key,value] of ordered){storage.setItem(key,value);written.push(key);}}
+    catch(error){
+      for(const key of written)if(original.get(key)===null)storage.removeItem(key);
+      const restore=written.filter(key=>original.get(key)!==null).sort((a,b)=>(original.get(a).length-(storage.getItem(a)?.length||0))-(original.get(b).length-(storage.getItem(b)?.length||0)));
+      for(const key of restore)storage.setItem(key,original.get(key));
+      throw error;
+    }
     return changes.size>0;
   }
   // The prototype's generic adapters fabricate examples; imported campus data must stay empty.
@@ -88,5 +183,5 @@
   H.defaults=function(data){const params=defaults(data);return is(data)?{...params,demand:null,sources:Object.fromEntries(data.nodes.filter(n=>n.type==='plant').map(n=>[n.id,null])),nodeDemands:{},pattern:[]}:params;};
   V.timeSeries=function(topology,data,...args){return is(data)?[]:timeSeries.call(this,topology,data,...args);};
   V.seed=function(db,topology,data){if(!is(data))return seed.call(this,db,topology,data);};
-  root.CampusProject={projectId:D.projectId,topologyId:D.topologyId,is,store,initialize,pending,snapshot:()=>clone(D.snapshot)};
+  root.CampusProject={projectId:D.projectId,topologyId:D.topologyId,is,store,initialize,prepareStorage,decodeSnapshot,pending,snapshot:()=>clone(D.snapshot)};
 })(globalThis);

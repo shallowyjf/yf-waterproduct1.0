@@ -91,6 +91,9 @@
     else rows.push(['坐标',`${o.x}, ${o.y}`],['高程',measure(o.elevation,'m')],['管径',o.diameter?`DN${o.diameter}`:'—']);
     if(o.sourceId)rows.push(['源文件编号',o.sourceId]);
     if(o.sourceTag)rows.push(['源文件标注',o.sourceTag]);
+    if(o.sourceDescription)rows.push(['源文件描述',o.sourceDescription]);
+    if(o.installationStatus)rows.push(['安装标注',o.installationStatus]);
+    if(o.nodeKind)rows.push(['源模型节点类型',o.nodeKind]);
     if(o.nodeKind==='RESERVOIR')rows.push(['水源总水头',o.headStatus==='待设置'?'待设置（源文件 0 m 为占位）':measure(o.headM,'m')]);
     if(Number.isFinite(o.sourceX)&&Number.isFinite(o.sourceY))rows.push(['原测绘坐标',o.sourceX+', '+o.sourceY],['坐标系','测绘局部坐标，CRS 未知']);
     return fields(rows)+(o.type==='pipe'?related('连接节点',[objectLink(o.start,'起点 · '),objectLink(o.end,'终点 · ')]):related('连接管线',ps.map(p=>link(p.id,`${p.name} · DN${p.diameter}`,'select-pipe')),'无连接管线'))

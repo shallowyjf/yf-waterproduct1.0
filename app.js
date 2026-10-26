@@ -1,5 +1,11 @@
-(function () {
+(async function () {
   "use strict";
+  try{await window.CampusProject?.prepareStorage();}
+  catch(error){
+    const notice=document.createElement('div');notice.setAttribute('role','alert');
+    notice.style.cssText='position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:99999;max-width:700px;padding:12px 18px;background:#fff7e6;border:1px solid #d48806;color:#7a4800;border-radius:8px';
+    notice.textContent='上海学校拓扑更新暂未完成，旧数据已保留。'+(error.message||'备份存储不可用')+'。请刷新重试；其他项目仍可使用。';document.body.appendChild(notice);
+  }
   const lengthText = v => v == null || v === '' || !Number.isFinite(Number(v)) ? '—' : Number(v).toLocaleString('en-US', {useGrouping:false, minimumFractionDigits:2, maximumFractionDigits:2});
 
   const entryRoot = document.getElementById("entryRoot");
@@ -78,11 +84,7 @@
     editingProjectId: null,
     projects: [
       ...(window.CampusDataset?[{id:window.CampusDataset.projectId,...window.CampusDataset.project}]:[]),
-      { id: "PRJ-SUIZHOU", name: "随州市供水管网", province: "湖北省", city: "随州市", district: "曾都区 / 随县", status: "运行中", owner: "—", updated: "2026-09-21 09:17" },
-      { id: "PRJ-001", name: "杭州市城区供水", province: "浙江省", city: "杭州市", district: "上城区", status: "运行中", owner: "张调度", updated: "2026-09-02 14:32" },
-      { id: "PRJ-002", name: "青岛市供水管网", province: "山东省", city: "青岛市", district: "市南区", status: "运行中", owner: "李运维", updated: "2026-09-02 13:48" },
-      { id: "PRJ-003", name: "佛山市城乡供水", province: "广东省", city: "佛山市", district: "南海区", status: "建设中", owner: "王工", updated: "2026-09-01 18:20" },
-      { id: "PRJ-004", name: "南京市北部供水", province: "江苏省", city: "南京市", district: "浦口区", status: "已停用", owner: "陈管理员", updated: "2026-08-28 09:15" }
+      ...(window.SuizhouDataset?[{ id: window.SuizhouDataset.projectId, name: "随州市供水管网", province: "湖北省", city: "随州市", district: "曾都区 / 随县", status: "运行中", owner: "—", updated: "2026-09-21 09:17" }]:[])
     ],
     timeMode: "REALTIME",
     navGroup: "maps",
@@ -617,7 +619,7 @@
 
   function dmaSelectedMonth(){return state.dmaMonths?.[state.activeProjectId+'|'+state.selectedTopology] || window.DMAStatistics.previous();}
 
-  function dmaDemoEnabled(){return !archivedMapPage()&&(isCampusProject()||state.activeProjectId==='PRJ-001'&&topologyStore().hangzhouExamples?.target===state.selectedTopology);}
+  function dmaDemoEnabled(){return !archivedMapPage()&&(isCampusProject()&&!(state.selectedTopology===window.CampusProject?.topologyId&&window.CampusDataset?.metadata?.topologyRevision)||state.activeProjectId==='PRJ-001'&&topologyStore().hangzhouExamples?.target===state.selectedTopology);}
 
   function dmaDeviceSummary(zone) {
     const model = topologyReadModel;
@@ -683,7 +685,7 @@
       if(!plan||bucket.activeId===id)throw Error('在用方案只读，请复制后编辑');
       liveTopologyEditor.validate(data);liveTopologyEditor.validateSpatial(data);plan.zones=JSON.parse(JSON.stringify(data.zones));plan.updated=new Date().toLocaleString('sv-SE');persistTopologyStore();
     }});
-    const project = state.activeProjectId || "PRJ-001", legacy = state.selectedTopology === "T0";
+    const project = state.activeProjectId || activeProject()?.id, legacy = state.selectedTopology === "T0";
     const key = `${project}:${legacy ? "T0" : state.selectedTopology || "T3"}`;
     if (liveTopologyEditor.key !== key) {
       const markup=baseNetworkMap({points:false,assetView:true});
@@ -703,14 +705,14 @@
   function hydraulics(){
     if(!hydraulicUI) hydraulicUI=window.createHydraulicsUI(()=>({project:state.activeProjectId,refresh:render,navigate,icon:navIcon,versions:topologyStore().versions,active:activeTopology()?.id,
       inputs:topologyReadModel.monitors.filter(m=>m.devices),
-      snapshot(id){const raw=localStorage.getItem(`water-editor:${state.activeProjectId}:${id}`);if(raw)return JSON.parse(raw);if(state.activeProjectId===window.SuizhouProject?.projectId&&id===window.SuizhouProject.topologyId)return window.SuizhouProject.snapshot();if(state.activeProjectId===window.CampusProject?.projectId&&id===window.CampusProject.topologyId)return window.CampusProject.snapshot();if(id===state.selectedTopology)return topologyReadModel.data;throw Error('该拓扑版本暂无已保存的数据');}
+      snapshot(id){const raw=localStorage.getItem(`water-editor:${state.activeProjectId}:${id}`);if(raw)return window.CampusProject?.decodeSnapshot?window.CampusProject.decodeSnapshot(raw):JSON.parse(raw);if(state.activeProjectId===window.SuizhouProject?.projectId&&id===window.SuizhouProject.topologyId)return window.SuizhouProject.snapshot();if(state.activeProjectId===window.CampusProject?.projectId&&id===window.CampusProject.topologyId)return window.CampusProject.snapshot();if(id===state.selectedTopology)return topologyReadModel.data;throw Error('该拓扑版本暂无已保存的数据');}
     }));return hydraulicUI;
   }
   let v2UI;
   function v2Platform(){
     if(!v2UI)v2UI=window.createV2UI(()=>({project:state.activeProjectId,page:state.page,version:state.productVersion,refresh:render,navigate,icon:navIcon,toast:showToast,hydraulics,
       versions:topologyStore().versions,active:activeTopology()?.id,inputs:topologyReadModel.monitors.filter(m=>m.devices),
-      snapshot(id){const raw=localStorage.getItem(`water-editor:${state.activeProjectId}:${id}`);if(raw)return JSON.parse(raw);if(state.activeProjectId===window.SuizhouProject?.projectId&&id===window.SuizhouProject.topologyId)return window.SuizhouProject.snapshot();if(state.activeProjectId===window.CampusProject?.projectId&&id===window.CampusProject.topologyId)return window.CampusProject.snapshot();if(id===state.selectedTopology)return topologyReadModel.data;throw Error('该拓扑版本暂无已保存的数据');},
+      snapshot(id){const raw=localStorage.getItem(`water-editor:${state.activeProjectId}:${id}`);if(raw)return window.CampusProject?.decodeSnapshot?window.CampusProject.decodeSnapshot(raw):JSON.parse(raw);if(state.activeProjectId===window.SuizhouProject?.projectId&&id===window.SuizhouProject.topologyId)return window.SuizhouProject.snapshot();if(state.activeProjectId===window.CampusProject?.projectId&&id===window.CampusProject.topologyId)return window.CampusProject.snapshot();if(id===state.selectedTopology)return topologyReadModel.data;throw Error('该拓扑版本暂无已保存的数据');},
       orders(){return operations().load().orders;},
       openOrder(id){const o=operations().load().orders.find(o=>o.id===id);operations().open(window.WaterOperations.terminal(o)?'p15h':'p15',id);},
       dispatch(plan){
@@ -1029,7 +1031,7 @@
     }
   }
   function renderLogin() {
-    return `<div class="product-login-page"><section class="product-login-brand" aria-label="系统介绍"><div class="product-login-brand-inner"><div class="product-login-logo"><span class="app-brand-mark">水</span><span>城市供水管网</span></div><h1>GIS + SCADA 运行管理平台</h1><p>统一管理多城市供水项目，进入项目后开展管网运行、拓扑、DMA 与实时监测工作。</p><div class="product-login-capabilities"><span>多城市项目统一入口</span><span>项目级数据隔离</span><span>GIS 与 SCADA 联动</span></div></div></section><section class="product-login-panel"><form class="product-login-card" data-action="login-submit"><div><h2>登录系统</h2><p>请输入账号进入项目管理。admin 可查看全部功能；1.0 演示账号：viewer1，密码：Viewer@2026。学校专供账号：school1，密码：School@2026。</p></div><label class="app-form-item"><span class="app-form-label is-required">账号</span><input id="loginAccount" class="app-input" placeholder="请输入账号" autocomplete="username" /></label><label class="app-form-item"><span class="app-form-label is-required">密码</span><input id="loginPassword" class="app-input" type="password" placeholder="请输入密码" autocomplete="current-password" /></label><div id="loginError" class="app-form-error product-login-error" role="alert"></div><button class="app-button app-button-primary app-button-large product-login-submit" type="submit">登录</button></form></section></div>`;
+    return `<div class="product-login-page"><section class="product-login-brand" aria-label="系统介绍"><div class="product-login-brand-inner"><div class="product-login-logo"><span class="app-brand-mark">水</span><span>城市供水管网</span></div><h1>GIS + SCADA 运行管理平台</h1></div></section><section class="product-login-panel"><form class="product-login-card" data-action="login-submit"><div><h2>登录系统</h2></div><label class="app-form-item"><span class="app-form-label is-required">账号</span><input id="loginAccount" class="app-input" placeholder="请输入账号" autocomplete="username" /></label><label class="app-form-item"><span class="app-form-label is-required">密码</span><input id="loginPassword" class="app-input" type="password" placeholder="请输入密码" autocomplete="current-password" /></label><div id="loginError" class="app-form-error product-login-error" role="alert"></div><button class="app-button app-button-primary app-button-large product-login-submit" type="submit">登录</button></form></section></div>`;
   }
 
   function renderProjects() {
@@ -1323,10 +1325,10 @@
 
   function renderP02SearchResults(view) {
     const keyword = state.p02SearchQuery.trim().toLowerCase();
-    const pipeResults = p02PipeCatalog.filter(item => !keyword || [item.id, item.name, item.diameter, item.material].some(value => value.toLowerCase().includes(keyword))).map(item => ({ ...item, kind: "pipe" }));
+    const pipeResults = p02PipeCatalog.filter(item => !keyword || [item.id, item.name, item.diameter, item.material, item.sourceDescription, item.sourceTag].some(value => String(value||'').toLowerCase().includes(keyword))).map(item => ({ ...item, kind: "pipe" }));
     const monitorResults = p02MonitorCatalog.filter(item => !keyword || [item.id, item.name, item.location, item.type].some(value => value.toLowerCase().includes(keyword))).map(item => ({ ...item, kind: "monitor" }));
     const dmaResults = p02DmaCatalog.filter(item => !keyword || [item.id, item.name].some(value => value.toLowerCase().includes(keyword))).map(item => ({ ...item, kind: "dma" }));
-    const assetResults = p02AssetCatalog.filter(item => !keyword || [item.id, item.name, item.type, item.model, item.location].some(value => value.toLowerCase().includes(keyword))).map(item => ({ ...item, kind: "asset" }));
+    const assetResults = p02AssetCatalog.filter(item => !keyword || [item.id, item.name, item.type, item.model, item.location, item.sourceDescription, item.sourceTag].some(value => String(value||'').toLowerCase().includes(keyword))).map(item => ({ ...item, kind: "asset" }));
     const results = (view === "dma" ? [...dmaResults, ...monitorResults.filter(item => item.type === "flow" || item.type === "pressure")] : view === "assets" ? [...assetResults, ...pipeResults] : monitorResults).slice(0, 8);
     if (state.p02SearchExecuted && !results.length) return '<div class="app-empty product-search-empty"><div><div class="app-empty-mark"></div><span>未找到匹配对象</span></div></div>';
     return `<div class="product-selection-list">${results.map(item => `<button class="product-selection-item" type="button" data-action="${item.kind === "pipe" ? "select-pipe" : item.kind === "monitor" ? "select-monitor" : item.kind === "asset" ? "select-asset" : "select-dma"}" data-value="${item.id}" ${item.kind === "pipe" ? `data-pipe-id="${item.id}"` : ""}><span><strong>${item.id}</strong><small>${item.name}</small></span><small>${item.kind === "pipe" ? item.diameter : item.kind === "monitor" ? item.value : item.kind === "asset" ? item.type : item.status}</small></button>`).join("")}</div>`;
@@ -1418,7 +1420,7 @@
 
 
   function topologyStore() {
-    const key=state.activeProjectId || "PRJ-001";
+    const key=state.activeProjectId || activeProject()?.id;
     if(key===window.CampusProject?.projectId)window.CampusProject.initialize();
     if(!state.topologyProjects[key]){try{const saved=JSON.parse(localStorage.getItem('water-topology-store:'+key));if(saved?.versions?.length&&Array.isArray(saved.bindings)&&Array.isArray(saved.bindingHistory))state.topologyProjects[key]=saved;}catch(_){}}
     if(!state.topologyProjects[key]&&key===window.SuizhouProject?.projectId)state.topologyProjects[key]=window.SuizhouProject.store();
@@ -1430,11 +1432,11 @@
   }
   function activeTopology(){return topologyStore().versions.find(t=>t.status==="使用中");}
   function selectedTopology(){return topologyStore().versions.find(t=>t.id===state.selectedTopology);}
-  function persistTopologyStore(){localStorage.setItem('water-topology-store:'+(state.activeProjectId||'PRJ-001'),JSON.stringify(topologyStore()));}
+  function persistTopologyStore(){localStorage.setItem('water-topology-store:'+(state.activeProjectId||activeProject()?.id),JSON.stringify(topologyStore()));}
   let deviceBindingUI;
   function deviceBinding(){
     if(!deviceBindingUI)deviceBindingUI=new window.WaterDeviceBinding.DeviceBinding({render,persist:persistTopologyStore,versionName:()=>selectedTopology()?.name||''});
-    deviceBindingUI.use(state.activeProjectId||'PRJ-001',state.selectedTopology,topologyStore(),topologyReadModel);
+    deviceBindingUI.use(state.activeProjectId||activeProject()?.id,state.selectedTopology,topologyStore(),topologyReadModel);
     return deviceBindingUI;
   }
   let standardUI;
@@ -2261,7 +2263,7 @@ ${state.layerStyleEditor?.context==="scada"?`<aside class="app-gis-panel product
       const city = editing ? project.city : Object.keys(regionOptions[province])[0];
       const district = editing ? project.district : regionOptions[province][city][0];
       title = editing ? "编辑项目" : "新建项目"; confirm = editing ? "保存修改" : "创建项目"; action = "confirm-project-save";
-      body = `<div class="product-modal-body-stack"><label class="app-form-item"><span class="app-form-label is-required">项目名称</span><input id="projectNameInput" class="app-input" value="${editing ? escapeHtml(project.name) : ""}" placeholder="例如：杭州市城区供水" /></label><div class="app-grid app-grid-3"><label class="app-form-item"><span class="app-form-label is-required">省</span><select id="projectProvinceInput" class="app-select">${Object.keys(regionOptions).map(item => `<option ${item === province ? "selected" : ""}>${item}</option>`).join("")}</select></label><label class="app-form-item"><span class="app-form-label is-required">市</span><select id="projectCityInput" class="app-select">${Object.keys(regionOptions[province]).map(item => `<option ${item === city ? "selected" : ""}>${item}</option>`).join("")}</select></label><label class="app-form-item"><span class="app-form-label is-required">区</span><select id="projectDistrictInput" class="app-select">${regionOptions[province][city].map(item => `<option ${item === district ? "selected" : ""}>${item}</option>`).join("")}</select></label></div><div class="product-project-form-grid"><label class="app-form-item"><span class="app-form-label is-required">项目状态</span><select id="projectStatusInput" class="app-select">${["运行中", "建设中", "已停用"].map(status => `<option ${editing && project.status === status ? "selected" : ""}>${status}</option>`).join("")}</select></label><label class="app-form-item"><span class="app-form-label is-required">负责人</span><input id="projectOwnerInput" class="app-input" value="${editing ? escapeHtml(project.owner) : ""}" placeholder="请输入负责人" /></label></div><div id="projectFormError" class="app-form-error" role="alert"></div></div>`;
+      body = `<div class="product-modal-body-stack"><label class="app-form-item"><span class="app-form-label is-required">项目名称</span><input id="projectNameInput" class="app-input" value="${editing ? escapeHtml(project.name) : ""}" placeholder="请输入项目名称" /></label><div class="app-grid app-grid-3"><label class="app-form-item"><span class="app-form-label is-required">省</span><select id="projectProvinceInput" class="app-select">${Object.keys(regionOptions).map(item => `<option ${item === province ? "selected" : ""}>${item}</option>`).join("")}</select></label><label class="app-form-item"><span class="app-form-label is-required">市</span><select id="projectCityInput" class="app-select">${Object.keys(regionOptions[province]).map(item => `<option ${item === city ? "selected" : ""}>${item}</option>`).join("")}</select></label><label class="app-form-item"><span class="app-form-label is-required">区</span><select id="projectDistrictInput" class="app-select">${regionOptions[province][city].map(item => `<option ${item === district ? "selected" : ""}>${item}</option>`).join("")}</select></label></div><div class="product-project-form-grid"><label class="app-form-item"><span class="app-form-label is-required">项目状态</span><select id="projectStatusInput" class="app-select">${["运行中", "建设中", "已停用"].map(status => `<option ${editing && project.status === status ? "selected" : ""}>${status}</option>`).join("")}</select></label><label class="app-form-item"><span class="app-form-label is-required">负责人</span><input id="projectOwnerInput" class="app-input" value="${editing ? escapeHtml(project.owner) : ""}" placeholder="请输入负责人" /></label></div><div id="projectFormError" class="app-form-error" role="alert"></div></div>`;
     } else if (state.modal === "project-delete") {
       const project = state.projects.find(item => item.id === state.editingProjectId);
       title = "删除项目"; confirm = "确认删除"; action = "confirm-project-delete";
@@ -2330,7 +2332,8 @@ ${state.layerStyleEditor?.context==="scada"?`<aside class="app-gis-panel product
     if (existing) {
       Object.assign(existing, { name, province, city, district, status, owner, updated: "2026-09-02 15:00" });
     } else {
-      const nextNumber = Math.max(0, ...state.projects.map(project => Number(project.id.replace("PRJ-", "")) || 0)) + 1;
+      // PRJ-001 through PRJ-004 belong to retired examples; never reuse their cached data.
+      const nextNumber = Math.max(4, ...state.projects.map(project => Number(project.id.replace("PRJ-", "")) || 0)) + 1;
       state.projects.push({ id: `PRJ-${String(nextNumber).padStart(3, "0")}`, name, province, city, district, status, owner, updated: "2026-09-02 15:00" });
     }
     state.modal = null;
@@ -2366,7 +2369,7 @@ ${state.layerStyleEditor?.context==="scada"?`<aside class="app-gis-panel product
       if(t){
         const previous=state.selectedTopology;state.selectedTopology=t.id;
         const snapshot=JSON.parse(JSON.stringify(topologyEditor().s.saved));
-        localStorage.setItem(`water-editor:${state.activeProjectId||'PRJ-001'}:${id}`,JSON.stringify(snapshot));
+        localStorage.setItem(`water-editor:${state.activeProjectId||activeProject()?.id}:${id}`,JSON.stringify(snapshot));
         window.WaterDeviceBinding.inherit(store,t.id,id);
         if(store.dmaPlans?.[t.id])store.dmaPlans[id]=JSON.parse(JSON.stringify(store.dmaPlans[t.id]));
         state.selectedTopology=previous;

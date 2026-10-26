@@ -82,7 +82,7 @@
         let data=options.data||this.seed(markup);
         try {
           const saved=localStorage.getItem(`water-editor:${key}`);
-          if(saved){const previous=this.validate(JSON.parse(saved));
+          if(saved){const previous=this.validate(window.CampusProject?.decodeSnapshot?window.CampusProject.decodeSnapshot(saved):JSON.parse(saved));
             const backupKey=`water-editor-backup:${key}:before-${data.sampleRevision}`;
             if(!options.preserve&&data.sampleRevision&&previous.sampleRevision!==data.sampleRevision&&!localStorage.getItem(backupKey)){
               // Preserve the previous sample and any user edits before upgrading its fixture.
@@ -118,7 +118,7 @@
       if(checkRequested&&!dma)this.s.tab="check";
       const s=this.s,data=s.data,edit=s.editing;
       const all=[...data.nodes,...data.pipes,...(dma?data.zones:[])], selected=this.object(s.selected);
-      const list=(dma?data.zones:all).filter(o=>!s.query||`${o.id} ${o.name}`.toLowerCase().includes(s.query.toLowerCase()));
+      const list=(dma?data.zones:all).filter(o=>!s.query||`${o.id} ${o.name} ${o.sourceDescription||''} ${o.sourceTag||''}`.toLowerCase().includes(s.query.toLowerCase()));
       const header=`<div class="product-page-header"><div><h1>${dma?"DMA 分区管理":"拓扑编辑器"}</h1><span class="we-mode">${edit?"编辑中":"查看"}${s.dirty?" · 未保存":""}</span></div><div class="we-actions">${this.button(edit?"view":"edit",edit?"退出编辑":"编辑",false,edit?"":"app-button-primary")}${this.button("save","保存",!edit||!s.dirty)}${this.button("undo","撤销",!edit||(!s.history.length&&!s.vertices.length))}${this.button("clear","清空",!edit,"app-button-danger")}${this.button("import","导入",!edit)}${this.button("export","导出")}${!dma?this.button("run-check","拓扑检查"):""}</div></div>`;
       const M=window.WaterMapLayout;
       const layerUI=`<div class="we-layer-list">${Object.entries(types).filter(([t])=>dma||t!=="zone").map(([t,label])=>`<label><input type="checkbox" data-we-layer="${t}" ${s.visible[t]?"checked":""}>${label}<span>${all.filter(o=>(window.WaterStandard?.kind(o)||o.type)===t).length}</span></label>`).join("")}</div>`;
@@ -130,7 +130,7 @@
     objectTable(dma){
       const s=this.s,all=[...s.data.nodes,...s.data.pipes,...(dma?s.data.zones:[])];s.tableType=s.tableType||'all';s.tableSize=s.tableSize||10;s.tablePage=s.tablePage||1;
       const zone=s.data.zones.find(z=>z.id===s.memberZone),members=new Set([...(zone?.nodeIds||[]),...(zone?.pipeIds||[])]);
-      const rows=all.filter(o=>(!s.issueObjectIds||s.issueObjectIds.includes(o.id))&&(s.tableType==='all'||s.tableType==='members'&&members.has(o.id)||s.tableType===(window.WaterStandard?.kind(o)||o.type))&&(!s.query||`${o.id} ${o.name}`.toLowerCase().includes(s.query.toLowerCase()))),pages=Math.max(1,Math.ceil(rows.length/s.tableSize));s.tablePage=Math.min(s.tablePage,pages);
+      const rows=all.filter(o=>(!s.issueObjectIds||s.issueObjectIds.includes(o.id))&&(s.tableType==='all'||s.tableType==='members'&&members.has(o.id)||s.tableType===(window.WaterStandard?.kind(o)||o.type))&&(!s.query||`${o.id} ${o.name} ${o.sourceDescription||''} ${o.sourceTag||''}`.toLowerCase().includes(s.query.toLowerCase()))),pages=Math.max(1,Math.ceil(rows.length/s.tableSize));s.tablePage=Math.min(s.tablePage,pages);
       const tabs=[['all','全部对象'],...Object.entries(types).filter(([t])=>dma||t!=='zone'),...(zone?[['members',zone.name+'成员']]:[])];
       return `<section data-map-slot="bottom" aria-label="对象列表"><header class="map-panel-head"><strong>${dma?'分区与拓扑对象':'拓扑对象'} · ${rows.length}</strong>${window.WaterMapLayout.toggle('bottom','对象列表')}</header><nav class="map-object-tabs" role="tablist" aria-label="对象类别">${tabs.map(([id,label])=>`<button role="tab" aria-selected="${s.tableType===id}" class="${s.tableType===id?'is-active':''}" data-we="table-type" data-value="${id}">${label}</button>`).join('')}</nav><form class="map-query" data-we-search><input class="app-input" name="search" aria-label="搜索对象" placeholder="名称 / 编号" value="${esc(s.query)}"><button class="app-button" type="submit">查询</button>${this.button('table-reset','重置')}<span class="map-pager">共 ${rows.length} 条 ${this.button('table-prev','上一页',s.tablePage===1)} ${s.tablePage} / ${pages} ${this.button('table-next','下一页',s.tablePage===pages)}<select class="app-select" data-we-page-size aria-label="每页对象条数">${[10,20,50].map(n=>`<option value="${n}" ${s.tableSize===n?'selected':''}>${n} 条/页</option>`).join('')}</select></span></form><div class="map-table-scroll"><table class="app-table" data-auto-paged="true"><thead><tr><th>对象编号</th><th>名称</th><th>类型</th><th>管径 / mm</th><th>高程 / m</th><th>管长 / m</th><th>成员点 / 线</th><th>操作</th></tr></thead><tbody>${rows.slice((s.tablePage-1)*s.tableSize,s.tablePage*s.tableSize).map(o=>`<tr class="${s.selected===o.id?'is-selected':''}"><td>${esc(o.id)}</td><td>${esc(o.name)}</td><td>${window.WaterStandard?.label(o)||types[o.type]}</td><td>${esc(o.diameter??'—')}</td><td>${esc(o.elevation??'—')}</td><td>${lengthText(o.length)}</td><td>${o.type==='zone'?o.nodeIds.length+' / '+o.pipeIds.length:'—'}</td><td><button type="button" class="app-button app-button-link" data-we="object" data-value="${esc(o.id)}">查看 / 定位</button>${s.editing&&s.tableType==='members'?`<button type="button" class="app-button app-button-link" data-we="remove-member" data-value="${esc(o.id)}">移出分区</button>`:''}</td></tr>`).join('')||'<tr><td colspan="8">无匹配对象</td></tr>'}</tbody></table></div></section>`;
     }
@@ -171,6 +171,8 @@
       if(o.hypothetical)fields+=`<div class="we-property"><span>方案性质</span><strong>假定分区 · 待现场核实</strong></div><div class="we-property"><span>包含建筑</span><strong>${esc((o.buildings||[]).join('、'))}</strong></div><div class="we-property"><span>假定入口 / 出口</span><strong>${esc((o.inletPipeIds||[]).map(id=>this.object(id)?.sourceId||id).join('、'))} / ${esc((o.outletPipeIds||[]).map(id=>this.object(id)?.sourceId||id).join('、')||'无')}</strong></div><p>${esc(o.note||'')}</p>`;
       if(o.nodeKind==='RESERVOIR')fields+=`<div class="we-property"><span>水源总水头</span><strong>${o.headStatus==='待设置'?'待设置（0 m 为占位）':esc(o.headM)+' m'}</strong></div>`;
       if(o.sourceId)fields+=`<div class="we-property"><span>源文件编号</span><strong>${esc(o.sourceId)}</strong></div>`;
+      if(o.sourceDescription)fields+=`<div class="we-property"><span>源文件描述</span><strong>${esc(o.sourceDescription)}</strong></div>`;
+      if(o.installationStatus)fields+=`<div class="we-property"><span>安装标注</span><strong>${esc(o.installationStatus)}</strong></div>`;
       return `<div class="product-pane-header"><strong>对象属性</strong>${this.button("close-detail","×")}</div><form class="we-form" data-we-properties>${fields}${this.s.editing&&!disabled?'<button class="app-button app-button-primary" type="submit">应用修改</button>':""}</form>`;
     }
     issues() {
