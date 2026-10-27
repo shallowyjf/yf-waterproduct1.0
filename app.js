@@ -1087,7 +1087,12 @@
       ['月度水量差值', dmaQuantity(b.difference)], ['有效统计日数', `${b.days || 0} / ${b.totalDays || window.DMAStatistics.days(month)} 天`]
     ]) + links;
     const nameEditor = `<div class="dma-name-editor"><label class="app-form-item"><span class="app-form-label">分区名称</span><input id="dmaZoneName" class="app-input" maxlength="60" value="${escapeHtml(dma.name)}" ${readonly ? 'readonly' : ''}></label>${readonly ? '' : `<button class="app-button" data-action="save-dma-metadata" data-value="${escapeHtml(dma.id)}">保存名称</button>`}</div>`;
-    return nameEditor + metrics + fields([['分区 ID（系统设置）', dma.id], ['分区内设备数量', info.count + ' 台'], ['分区层级', dma.level + ' 级'], ['上级分区', findDma(dma.parent)?.name || '项目供水范围']])
+    const scope = dma.definitionSource === 'user' ? fields([
+      ['范围说明', dma.note || '—'], ['起点节点', (dma.inletNodeIds || []).join('、') || '—'],
+      ...(dma.outletNodeIds?.length ? [['出口交界节点', dma.outletNodeIds.join('、')]] : []),
+      ...(dma.boundaryNodeIds?.length ? [['共用边界节点', dma.boundaryNodeIds.join('、')]] : [])
+    ]) : '';
+    return nameEditor + scope + metrics + fields([['分区 ID（系统设置）', dma.id], ['分区内设备数量', info.count + ' 台'], ['分区层级', dma.level + ' 级'], ['上级分区', findDma(dma.parent)?.name || '项目供水范围']])
       + (dmaDemoEnabled() ? '<p class="app-text-tertiary">演示数据</p>' : '')
       + fields([['成员点 / 管线', `${dma.nodeIds?.length || 0} / ${dma.pipeIds?.length || 0}`], ['边界管线', dma.boundaries?.length || 0]])
       + links;
@@ -1312,7 +1317,7 @@
   }
 
   function renderP02SelectionTree() {
-    if(isCampusProject())return `<div class="product-selection-tree">${p02TreeBranch('dma-root','假定 DMA 分区',p02DmaCatalog.map(dma=>`<button class="product-tree-row is-leaf" type="button" data-action="select-dma" data-value="${escapeHtml(dma.id)}"><span class="product-tree-zone product-zone-${dma.zone}"></span><span><strong>${escapeHtml(dma.name)}</strong><small>${escapeHtml(dma.id)}</small></span></button>`).join(''),p02DmaCatalog.length)}</div>`;
+    if(isCampusProject())return `<div class="product-selection-tree">${p02TreeBranch('dma-root','DMA 分区',p02DmaCatalog.map(dma=>`<button class="product-tree-row is-leaf" type="button" data-action="select-dma" data-value="${escapeHtml(dma.id)}"><span class="product-tree-zone product-zone-${dma.zone}"></span><span><strong>${escapeHtml(dma.name)}</strong><small>${escapeHtml(dma.id)}</small></span></button>`).join(''),p02DmaCatalog.length)}</div>`;
     const dmaGroups = [["dma-north", "城北供水区"], ["dma-south", "城南供水区"], ["dma-east", "城东供水区"], ["dma-west", "城西供水区"]];
     const groupHtml = dmaGroups.map(group => {
       const items = p02DmaCatalog.filter(item => item.group === group[0]).map(dma => `<button class="product-tree-row is-leaf ${state.p02Drawer === p02DrawerRef("dma", dma.id) ? "is-selected" : ""}" type="button" data-action="select-dma" data-value="${dma.id}"><span class="product-tree-switch"></span><span class="product-tree-zone product-zone-${dma.zone}"></span><span><strong>${dma.id}</strong><small>${dma.name}</small></span>${dma.status === "正常" ? "" : '<i class="product-tree-warning"></i>'}</button>`).join("");

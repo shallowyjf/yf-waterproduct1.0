@@ -150,12 +150,13 @@ test('old browser cache is backed up completely and replaced; old bindings and D
   assert.deepEqual(JSON.parse(st.getItem('water-editor:'+D.projectId+':'+archiveId)),old);
   const current=JSON.parse(st.getItem('water-topology-store:'+D.projectId));
   assert.equal(current.versions.find(v=>v.id===D.topologyId).status,'使用中');assert.equal(current.versions.find(v=>v.id===archiveId).status,'已归档');
-  assert.deepEqual(current.dmaPlans[archiveId],catalog.dmaPlans[D.topologyId]);assert.deepEqual(current.dmaPlans[D.topologyId].items[0].zones,[]);
+  assert.deepEqual(current.dmaPlans[archiveId],catalog.dmaPlans[D.topologyId]);assert.deepEqual(current.dmaPlans[D.topologyId].items[0].zones,D.snapshot.zones);
   assert.equal(current.bindings.filter(b=>b.key.startsWith(D.topologyId+'|')).length,0);
   assert.equal(current.bindings.filter(b=>b.key.startsWith(archiveId+'|')).length,2);
   assert.deepEqual(current.bindings.find(b=>b.key.startsWith('USER-VERSION|')),catalog.bindings[2]);
   assert.equal(current.bindingHistory[0].key,archiveId+'|JS54|flow');
-  assert.deepEqual(current.epochs,[{topology:archiveId,start:'2026-10-13',end:'2026-10-26'},{topology:D.topologyId,start:'2026-10-26',end:null}]);
+  const activationDate=D.project.updated.slice(0,10);
+  assert.deepEqual(current.epochs,[{topology:archiveId,start:'2026-10-13',end:activationDate},{topology:D.topologyId,start:activationDate,end:null}]);
   assert.deepEqual(JSON.parse(st.getItem('water-devices:'+D.projectId)),devices);assert.deepEqual(JSON.parse(st.getItem('water-operations:v1:'+D.projectId)),operations);
   assert.equal(st.getItem('water-editor:'+D.projectId+':USER-VERSION'),'untouched user topology');assert.equal(st.getItem('water-editor:OTHER:V1'),'untouched other project');
   const before=[...st.entries];assert.equal(C.initialize(st),false);assert.deepEqual([...st.entries],before);

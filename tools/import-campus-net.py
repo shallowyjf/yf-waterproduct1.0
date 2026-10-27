@@ -2,7 +2,8 @@
 
 Run from any directory. Source IDs, topology, descriptions and geometry come from
 the NET; historical surveyed physical metadata is retained only at unmoved IDs.
-No hydraulic sources, installed devices, flow directions or new DMAs are inferred.
+No hydraulic sources, installed devices or flow directions are inferred. The
+four DMA ranges are the user's explicit 2026-10-27 partition definition.
 """
 from __future__ import annotations
 
@@ -159,10 +160,12 @@ def build(source):
                'excavationCandidates':sum(i['excavationCandidate'] for i in installation),
                'selectionPending':sum(i['selectionPending'] for i in installation),'demonstrationMonitorPoints':0}
     assert len({o['id'] for o in nodes+pipes}) == len(nodes)+len(pipes)
-    return {'id':old['sourceDataset'],'projectId':'PRJ-SH-CAMPUS','topologyId':'T-SH-CAMPUS-20261013',
+    dataset = {'id':old['sourceDataset'],'projectId':'PRJ-SH-CAMPUS','topologyId':'T-SH-CAMPUS-20261013',
             'project':{'id':'PRJ-SH-CAMPUS','name':'上海技术学院漏损控制项目','province':'上海市','city':'上海市',
                        'district':'待确认','status':'建设中','owner':'—','updated':DATE},
             'snapshot':snapshot,'metadata':metadata,'provenance':provenance,'summary':summary}
+    from campus_dma_20261027 import apply_dma
+    return apply_dma(dataset)
 
 
 def main():
