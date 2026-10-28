@@ -9,7 +9,9 @@
   const kind=o=>o?.type==='user'&&o.userSubtype==='FIRE_HYDRANT'?'hydrant':o?.type;
   const label=o=>({node:'连接点',valve:'阀门',plant:'水厂',pump:'泵站',user:'用户端',hydrant:'消火栓',cap:'堵头',pipe:'管线',zone:'DMA 分区'})[kind(o)]||'—';
   const metric=d=>d.metric||types[d.type]?.[1]||d.type;
-  function hostError(d,host){if(!host)return '挂接对象不存在';if(d.type==='rtu')return 'RTU 请通过下挂设备关联拓扑';if(d.type==='noise'&&host.type!=='valve')return '噪声仪只能挂接阀门';if(d.type==='hydrant'&&kind(host)!=='hydrant')return '消火栓设备请选择消火栓对象';return '';}
+  const businessMeter=d=>!!d.businessUserId;
+  const plannedPoint=(d,host)=>d.preset===true&&d.demo===true&&!!d.installationPlanId&&!!d.topologyId&&d.plannedHostId===host?.id&&['node','valve','pump','plant','user','cap'].includes(kind(host));
+  function hostError(d,host){if(!host)return '挂接对象不存在';if(d.type==='rtu')return 'RTU 请通过下挂设备关联拓扑';if(d.type==='noise'&&host.type!=='valve'&&!plannedPoint(d,host))return '噪声仪请选择阀门或该设备的规划安装点';if(d.type==='hydrant'&&kind(host)!=='hydrant')return '消火栓设备请选择消火栓对象';return '';}
   function validateDevice(input,devices,model,old){
     const d={...old,...input};d.id=String(old?.id||d.id||'').trim();d.name=String(d.name||'').trim();
     if(!/^[A-Za-z0-9_-]{2,64}$/.test(d.id)||!d.name)throw Error('编号须为 2–64 位字母、数字、下划线或连字符，名称不能为空');
@@ -54,6 +56,6 @@
     const key=`HYD:${device.id}:${event.id}`,old=db.alarms.find(a=>a.sourceKey===key);if(old)return old;
     const a={id:key,sourceKey:key,deviceId:device.id,name:device.name+' · '+event.name,hostId,topology,type:'alarm',status:'待确认',createdAt:event.time||new Date().toISOString(),level:'重要',triggerValue:event.value||'设备异常',triggerQuality:'GOOD',threshold:'设备平台异常事件',source:'消火栓设备',sample:true,notifyEnabled:device.alarmEnabled!==false,logs:[]};db.alarms.push(a);return a;
   }
-  function samples(device,metricKey,start,end){const from=Date.parse(start),to=Date.parse(end);return (device.samples||[]).filter(s=>(!metricKey||s.metric===metricKey)&&(!Number.isFinite(from)||Date.parse(s.time)>=from)&&(!Number.isFinite(to)||Date.parse(s.time)<=to));}
-  return {types,metrics,reportTypes,columns,kind,label,metric,hostError,validateDevice,previewImport,commitImport,balance,diagnose,csv,alarm,samples,copy};
+  function samples(device,metricKey,start,end){const from=Date.parse(start),parsedEnd=Date.parse(end),to=parsedEnd+(/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}$/.test(end)?59999:0);return (device.samples||[]).filter(s=>(!metricKey||s.metric===metricKey)&&(!Number.isFinite(from)||Date.parse(s.time)>=from)&&(!Number.isFinite(to)||Date.parse(s.time)<=to));}
+  return {types,metrics,reportTypes,columns,kind,label,metric,businessMeter,plannedPoint,hostError,validateDevice,previewImport,commitImport,balance,diagnose,csv,alarm,samples,copy};
 });

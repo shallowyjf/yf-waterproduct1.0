@@ -96,7 +96,7 @@
     p02Tool: "select",
     p02LayersByView: {
       operations: { basemap: true, pipes: true, nodes: false, valves: false, pressure: true, flow: true, quality: true, level: true, dma: false, alarms: true, workorders: true, plants: true, pumps: true, users: true, hydrants:true, noise:true, labels: true },
-      dma: { basemap: true, pipes: true, nodes: false, valves: true, pressure: true, flow: true, quality: true, level: false, dma: true, alarms: false, workorders: false, plants: true, pumps: true, users: true, hydrants:true, noise:true, labels: true },
+      dma: { basemap: true, pipes: true, nodes: false, valves: true, pressure: true, flow: true, quality: true, level: true, dma: true, alarms: false, workorders: false, plants: true, pumps: true, users: true, hydrants:true, noise:true, labels: true },
       assets: { basemap: true, pipes: true, nodes: true, valves: true, pressure: false, flow: false, quality: false, level: false, dma: false, alarms: false, workorders: false, plants: true, pumps: true, users: true, hydrants:true, noise:true, labels: true }
     },
     mapLayerStyles: { operations: createMapLayerStyle(), dma: createMapLayerStyle(), assets: createMapLayerStyle(), scada: createMapLayerStyle() },
@@ -589,15 +589,6 @@
     return path;
   }
 
-  function dmaVisibleDeviceIds() {
-    if(topologyReadModel){const focus=state.p02DmaFocus||p02SelectedDma()?.id;return topologyReadModel.monitors.filter(m=>!focus||m.zoneIds.includes(focus)).map(m=>m.id);}
-    const focus = state.p02DmaFocus || "";
-    if (focus.startsWith("DMA-A")) return ["Q-001", "P-018", "WQ-001"];
-    if (focus.startsWith("DMA-B")) return ["Q-018", "P-018", "WQ-018"];
-    if (focus.startsWith("DMA-C")) return ["Q-032", "P-032", "P-086", "WQ-032"];
-    return p02MonitorCatalog.map(item => item.id);
-  }
-
   function dmaMetadataEditable() {
     return !archivedMapPage() && !topologyReadModel?.history && state.selectedTopology === activeTopology()?.id;
   }
@@ -620,6 +611,7 @@
   function dmaSelectedMonth(){return state.dmaMonths?.[state.activeProjectId+'|'+state.selectedTopology] || window.DMAStatistics.previous();}
 
   function dmaDemoEnabled(){return !archivedMapPage()&&(isCampusProject()&&!(state.selectedTopology===window.CampusProject?.topologyId&&window.CampusDataset?.metadata?.topologyRevision)||state.activeProjectId==='PRJ-001'&&topologyStore().hangzhouExamples?.target===state.selectedTopology);}
+  function campusMeteringEnabled(){return !archivedMapPage()&&state.activeProjectId===window.CampusMetering?.projectId&&state.selectedTopology===window.CampusMetering?.topologyId;}
 
   function dmaDeviceSummary(zone) {
     const model = topologyReadModel;
@@ -652,6 +644,17 @@
 
   function dmaQuantity(value, unit = 'm³') {
     return value == null || value === '' || !Number.isFinite(Number(value)) ? '--' : Number(value).toLocaleString('zh-CN', { minimumFractionDigits: 3, maximumFractionDigits: 3 }) + (unit ? ' ' + unit : '');
+  }
+
+  function dmaAssetSummary(zone) {
+    const data=topologyReadModel?.data||{nodes:[],pipes:[]},nodeIds=new Set(zone.nodeIds||[]),pipeIds=new Set(zone.pipeIds||[]);
+    const nodes=data.nodes.filter(n=>nodeIds.has(n.id)),pipes=data.pipes.filter(p=>pipeIds.has(p.id));
+    const kind=n=>window.WaterStandard?.kind(n)||(n.type==='user'&&String(n.userSubtype||n.user_subtype||'').toUpperCase()==='FIRE_HYDRANT'?'hydrant':n.type);
+    const users=nodes.filter(n=>kind(n)==='user');
+    return {valves:nodes.filter(n=>kind(n)==='valve').length,users:users.length,
+      children:users.reduce((sum,n)=>sum+(window.WaterUserHierarchy?.summary(data,n.id)?.children||0),0),
+      pumps:nodes.filter(n=>kind(n)==='pump').length,hydrants:nodes.filter(n=>kind(n)==='hydrant').length,pipes:pipes.length,
+      length:pipes.every(p=>p.length!==null&&p.length!==''&&Number.isFinite(Number(p.length))&&Number(p.length)>=0)?pipes.reduce((sum,p)=>sum+Number(p.length),0):null};
   }
 
   function renderDmaPolygons(layerHidden, options = {}) {
@@ -742,7 +745,7 @@
         const width=900/(zoom/100),height=540/(zoom/100),center=pos||[450,270];
         svg.setAttribute('viewBox',`${center[0]-width/2} ${center[1]-height/2} ${width} ${height}`);
         svg.querySelectorAll('[data-action]').forEach(el=>{if(!el.closest('.product-ops-marker')){el.removeAttribute('data-action');el.removeAttribute('role');el.removeAttribute('tabindex');}});
-        svg.querySelectorAll('.product-ops-marker').forEach(el=>{const e=events.find(e=>e.id===el.dataset.value);if(e){el.insertAdjacentHTML('afterbegin',`<rect class="ops-event-hit" x="-14" y="-14" width="${36+e.name.length*11}" height="28" fill="transparent" stroke="none" pointer-events="all"/>`);el.insertAdjacentHTML('beforeend',`<text class="ops-event-label" x="15" y="4">${escapeHtml(e.name)}</text>`);}});
+        svg.querySelectorAll('.product-ops-marker').forEach(el=>{const e=events.find(e=>e.id===el.dataset.value);if(e){el.insertAdjacentHTML('afterbegin',`<rect class="ops-event-hit" x="-14" y="-14" width="28" height="28" fill="transparent" stroke="none" pointer-events="all"/>`);el.insertAdjacentHTML('beforeend',`<text class="ops-event-label" x="15" y="4">${escapeHtml(e.name)}</text>`);}});
         return wrap.innerHTML;
       },
       mapView(action){if(action==='map-reset')state.opsMapFocus='full';state.opsMapZoom=action==='map-reset'?100:Math.max(60,Math.min(260,(state.opsMapZoom||100)+(action==='map-zoom-in'?20:-20)));render();},
@@ -857,7 +860,7 @@
         const [,hostId,type]=b.key.split('|'),host=topologyReadModel.objects.get(hostId),pos=topologyReadModel.position(hostId),metric=window.WaterDeviceBinding.metrics[type];
         if(!metric)return;
         const a=window.WaterDeviceBinding.aggregate({...b,metric:type},ui.devices);
-        topologyReadModel.monitors.push({id:`BIND-${hostId}-${type}`,type,name:`${host?.name||hostId} · ${metric[0]}聚合`,hostId,zoneIds:host?.type==='zone'?[hostId]:topologyReadModel.zoneFor(hostId),x:pos?.[0]??null,y:pos?.[1]??null,numeric:a.value,unit:a.unit||metric[1],value:pos&&a.value!==null?`${a.value} ${a.unit||metric[1]}`:'—',quality:!pos?'UNBOUND':a.value===null?'MISSING':a.excluded?'PARTIAL':'GOOD',location:host?`${host.id} · ${host.name}`:'对象已删除',devices:[...b.devices],rule:b.rule,sampleTime:a.time});
+        topologyReadModel.monitors.push({id:`BIND-${hostId}-${type}`,type,name:`${host?.name||hostId} · ${metric[0]}聚合`,hostId,zoneIds:host?.type==='zone'?[hostId]:topologyReadModel.zoneFor(hostId),x:pos?.[0]??null,y:pos?.[1]??null,numeric:a.value,unit:a.unit||metric[1],value:pos&&a.value!==null?`${a.value} ${a.unit||metric[1]}`:'—',quality:!pos?'UNBOUND':a.value===null?'MISSING':a.excluded?'PARTIAL':'GOOD',location:host?`${host.id} · ${host.name}`:'对象已删除',devices:[...b.devices],rule:b.rule,sampleTime:a.time,demo:b.devices.every(id=>ui.devices.find(d=>d.id===id)?.demo)});
       });
     }
     topologyReadModel.data.businessDeviceLinks=topologyStore().bindings.filter(b=>b.key.split('|')[0]===state.selectedTopology).flatMap(b=>b.devices.map(id=>{const d=deviceBinding().devices.find(d=>d.id===id);return {hostId:b.key.split('|')[1],id,name:d?.name||id};}));
@@ -893,6 +896,28 @@
     selector.innerHTML=topologyStore().versions.map(v=>`<option value="${escapeHtml(v.id)}">${escapeHtml(v.id+' · '+v.name+' · '+(v.id==='T0'?'历史只读':v.status))}</option>`).join("");
     selector.value=state.selectedTopology;selector.disabled=archivedMapPage();
   }
+  function fitDmaUserSymbols(svg) {
+    // A user stays at its actual coordinate. Only its icon is fitted inside the
+    // member polygon; labels retain their size and do not intercept map clicks.
+    const ns='http://www.w3.org/2000/svg';
+    const polygons=new Map(topologyReadModel.zones.map(z=>[z.id,topologyReadRenderer.zonePoints(z)]));
+    const distance=(p,a,b)=>{const dx=b.x-a.x,dy=b.y-a.y,t=Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/(dx*dx+dy*dy||1)));return Math.hypot(p.x-a.x-t*dx,p.y-a.y-t*dy);};
+    svg.querySelectorAll('.we-user').forEach(el=>{
+      const node=topologyReadModel.objects.get(el.dataset.value),zone=topologyReadModel.zones.find(z=>z.nodeIds.includes(node?.id)),poly=polygons.get(zone?.id);
+      if(!node||!poly?.length||!window.DMAGeometry.pointInPolygon(node,poly))return;
+      const clearance=Math.min(...poly.map((p,i)=>distance(node,p,poly[(i+1)%poly.length])));
+      if(clearance<=0)return;
+      let matrix=new DOMMatrix();for(let i=0;i<el.transform.baseVal.numberOfItems;i++)matrix=matrix.multiply(el.transform.baseVal.getItem(i).matrix);
+      const nativeScale=Math.max(Math.hypot(matrix.a,matrix.b),Math.hypot(matrix.c,matrix.d));
+      // The house icon, including the selected stroke, fits inside radius 13.
+      const scale=Math.min(1,clearance*.9/(13*nativeScale));
+      const glyph=document.createElementNS(ns,'g');glyph.setAttribute('class','dma-user-glyph');glyph.setAttribute('transform',`scale(${scale})`);
+      [...el.children].filter(child=>!['text','title'].includes(child.localName)).forEach(child=>glyph.append(child));el.prepend(glyph);
+      el.dataset.dmaOwner=zone.id;el.dataset.dmaClearance=String(clearance);el.dataset.dmaGlyphScale=String(scale);
+    });
+    svg.dataset.dmaPresentation='true';
+  }
+
   function networkMap(options = {}) {
     if(options.comparison||!topologyReadModel)return baseNetworkMap(options);
     const selected=state.page==='p10'?[state.p10UserSelected||state.p10Selected]:state.p02SelectedObjects;
@@ -905,6 +930,7 @@
     svg.querySelectorAll('[data-pipe-id]').forEach(el=>{const p=topologyReadModel.objects.get(el.dataset.pipeId);el.classList.add(p.diameter>=800?'is-main-line':'is-branch-line');if(highlight.includes(p.id))el.classList.add('is-selected');if(config){const idx=pipeClassificationIndex(config,{...p,age:p.age??8});el.classList.add('is-pipe-classified',`is-pipe-class-${idx}`);el.style.setProperty('--pipe-class-color',config.colors[idx]);if(state.pipeClassHidden[options.classificationContext].includes(idx))el.classList.add('is-pipe-class-hidden');}});
     svg.querySelectorAll('[data-value]').forEach(el=>{if(highlight.includes(el.dataset.value))el.classList.add('is-selected');});
     svg.querySelectorAll('.we-zone').forEach(el=>{el.style.fill=(state.dmaZoneColors[el.dataset.value]||'#3997bf')+'25';el.style.stroke=state.dmaZoneColors[el.dataset.value]||'#3997bf';el.parentElement.classList.add('product-dma-zones');});
+    if(options.dma)fitDmaUserSymbols(svg);
     if(options.layers?.labels===false)svg.querySelectorAll('.we-node text').forEach(el=>el.remove());
     if(options.dma&&options.layers?.labels!==false)svg.insertAdjacentHTML('beforeend',topologyReadModel.zones.map(z=>`<text class="unified-zone-label" x="${z.labelX}" y="${z.labelY}" data-action="select-dma" data-value="${z.id}">${escapeHtml(z.name)}</text>`).join(''));
     svg.insertAdjacentHTML('beforeend',window.TopologyMapData.overlay(topologyReadModel,{...options,selectedIds:selected}));
@@ -979,7 +1005,7 @@
           <rect class="product-asset-surface" width="44" height="56" rx="4"></rect><path class="product-asset-line" d="M8 44V18l9 6V12l9 6V8h10v36M5 44h34"></path><text class="product-asset-label" x="22" y="70">第一水厂</text>
         </g>
         <g class="product-pump-station${layerHidden("pumps")}${selectedClass("PUMP-001")}" transform="translate(182 274)" ${assetAttrs("PUMP-001", "城西加压泵站")}>
-          <circle class="product-node-surface" r="18"></circle><path class="product-asset-line" d="M-8 5c6-13 14-13 20-2M-8 5h20"></path><text class="product-node-symbol" x="0" y="-24">泵站</text>
+          <circle class="product-node-surface" r="10"></circle><path class="product-asset-line" d="M-5 3c4-8 9-8 12-1M-5 3h12"></path><text class="product-node-symbol" x="0" y="-24">泵站</text>
         </g>
         <g class="product-junction-node${layerHidden("nodes")}${selectedClass("NODE-J01")} ${state.p02FocusedNode === "J-01" ? "is-selected" : ""}" transform="translate(302 274)" ${assetAttrs("NODE-J01", "连接点 J-01")}><circle r="7"></circle><text x="10" y="-10">J-01</text></g>
         <g class="product-valve-node${layerHidden("valves")}${selectedClass("VALVE-V101")}" transform="translate(404 170)" ${assetAttrs("VALVE-V101", "阀门 V-101")}><path d="M-11 0 0-11 11 0 0 11Z"></path><circle r="3"></circle><text x="14" y="-8">V-101</text></g>
@@ -1039,7 +1065,7 @@
     const projects = state.projects.filter(project => !keyword || [project.name, project.province, project.city, project.district, project.owner, project.id].some(value => String(value).toLowerCase().includes(keyword)));
     const running = state.projects.filter(project => project.status === "运行中").length;
     const building = state.projects.filter(project => project.status === "建设中").length;
-    return `<div class="product-project-page"><header class="product-entry-header"><div class="product-entry-brand"><span class="app-brand-mark">水</span><div><strong>城市供水管网</strong><small>GIS + SCADA</small></div></div><div class="product-entry-user"><span class="app-tag app-tag-blue">${state.productVersion===2?"全部功能":"产品 1.0"}</span><span class="product-avatar">${state.productVersion===2?"管":"1"}</span><span>${state.productVersion===2?"admin":"1.0 演示账号"}</span><button class="app-button theme-toggle" type="button" data-theme-toggle aria-label="切换到暗色">☾ 暗色</button><button class="app-button" type="button" data-action="logout">退出登录</button></div></header><main class="product-project-main"><div class="app-breadcrumb"><span>平台管理</span><span class="app-breadcrumb-separator">/</span><span class="app-breadcrumb-current">城市项目</span></div><section class="app-page-header"><div class="app-page-header-main"><h1 class="app-page-title">城市项目</h1><p class="app-page-header-description">选择项目进入业务系统；管理员可维护项目基础信息。</p></div><div class="app-page-header-actions"><button class="app-button app-button-primary" type="button" data-action="create-project">新建项目</button></div></section><section class="product-project-stats"><div class="app-card app-card-body"><div class="app-statistic-label">项目总数</div><div class="app-statistic-value">${state.projects.length}</div><div class="app-statistic-meta">覆盖 ${new Set(state.projects.map(project => project.city)).size} 个城市</div></div><div class="app-card app-card-body"><div class="app-statistic-label">运行中</div><div class="app-statistic-value">${running}</div><div class="app-statistic-meta">项目数据正常接入</div></div><div class="app-card app-card-body"><div class="app-statistic-label">建设中</div><div class="app-statistic-value">${building}</div><div class="app-statistic-meta">正在配置管网数据</div></div></section><section class="app-search-panel"><div class="product-project-search"><label class="app-form-item"><span class="app-form-label">项目名称 / 省市区 / 负责人</span><input id="projectSearchInput" class="app-input" value="${escapeHtml(state.projectQuery)}" placeholder="请输入关键词" /></label><div class="app-search-actions"><button class="app-button app-button-primary" type="button" data-action="project-search">查询</button><button class="app-button" type="button" data-action="project-reset">重置</button></div></div></section><div class="app-toolbar"><div class="app-toolbar-left"><span class="app-result-count">共 <strong>${projects.length}</strong> 个项目</span></div></div>${projects.length ? `<div class="app-table-wrap"><table class="app-table product-project-table"><thead><tr><th>项目名称</th><th>省 / 市 / 区</th><th>状态</th><th>负责人</th><th>更新时间</th><th>操作</th></tr></thead><tbody>${projects.map(project => `<tr><td><strong>${escapeHtml(project.name)}</strong><div class="app-text-tertiary">${project.id}</div></td><td>${escapeHtml(project.province)} / ${escapeHtml(project.city)}<div class="app-text-tertiary">${escapeHtml(project.district)}</div></td><td>${tag(project.status, project.status === "运行中" ? "success" : project.status === "建设中" ? "warning" : "")}</td><td>${escapeHtml(project.owner)}</td><td>${project.updated}</td><td><div class="app-table-actions"><button class="app-button app-button-link" type="button" data-action="enter-project" data-project-id="${project.id}">进入项目</button><button class="app-button app-button-link" type="button" data-action="edit-project" data-project-id="${project.id}">编辑</button><button class="app-button app-button-link product-project-delete" type="button" data-action="delete-project" data-project-id="${project.id}">删除</button></div></td></tr>`).join("")}</tbody></table></div>` : `<section class="app-card"><div class="app-empty"><div><div class="app-empty-mark"></div><div>未找到匹配项目</div><button class="app-button app-button-primary u-mt-3" type="button" data-action="project-reset">清除筛选</button></div></div></section>`}</main></div>`;
+    return `<div class="product-project-page"><header class="product-entry-header"><div class="product-entry-brand"><span class="app-brand-mark">水</span><div><strong>城市供水管网</strong><small>GIS + SCADA</small></div></div><div class="product-entry-user"><span class="app-tag app-tag-blue">${state.productVersion===2?"全部功能":"产品 1.0"}</span><span class="product-avatar">${state.productVersion===2?"管":"1"}</span><span>${state.productVersion===2?"admin":"1.0 演示账号"}</span><button class="app-button theme-toggle" type="button" data-theme-toggle aria-label="切换到暗色">☾ 暗色</button><button class="app-button" type="button" data-action="logout">退出登录</button></div></header><main class="product-project-main"><div class="app-breadcrumb"><span>平台管理</span><span class="app-breadcrumb-separator">/</span><span class="app-breadcrumb-current">城市项目</span></div><section class="app-page-header"><div class="app-page-header-main"><h1 class="app-page-title">城市项目</h1><p class="app-page-header-description">选择项目进入业务系统；管理员可维护项目基础信息。</p></div><div class="app-page-header-actions"><button class="app-button app-button-primary" type="button" data-action="create-project">新建项目</button></div></section><section class="product-project-stats"><div class="app-card app-card-body"><div class="app-statistic-label">项目总数</div><div class="app-statistic-value">${state.projects.length}</div><div class="app-statistic-meta">覆盖 ${new Set(state.projects.map(project => project.city)).size} 个城市</div></div><div class="app-card app-card-body"><div class="app-statistic-label">运行中</div><div class="app-statistic-value">${running}</div><div class="app-statistic-meta">项目数据正常接入</div></div><div class="app-card app-card-body"><div class="app-statistic-label">建设中</div><div class="app-statistic-value">${building}</div><div class="app-statistic-meta">正在配置管网数据</div></div></section><div class="app-toolbar"><div class="app-toolbar-left"><span class="app-result-count">共 <strong>${projects.length}</strong> 个项目</span></div></div>${projects.length ? `<div class="app-table-wrap"><table class="app-table product-project-table"><thead><tr><th>项目名称</th><th>省 / 市 / 区</th><th>状态</th><th>负责人</th><th>更新时间</th><th>操作</th></tr></thead><tbody>${projects.map(project => `<tr><td><strong>${escapeHtml(project.name)}</strong><div class="app-text-tertiary">${project.id}</div></td><td>${escapeHtml(project.province)} / ${escapeHtml(project.city)}<div class="app-text-tertiary">${escapeHtml(project.district)}</div></td><td>${tag(project.status, project.status === "运行中" ? "success" : project.status === "建设中" ? "warning" : "")}</td><td>${escapeHtml(project.owner)}</td><td>${project.updated}</td><td><div class="app-table-actions"><button class="app-button app-button-link" type="button" data-action="enter-project" data-project-id="${project.id}">进入项目</button><button class="app-button app-button-link" type="button" data-action="edit-project" data-project-id="${project.id}">编辑</button><button class="app-button app-button-link product-project-delete" type="button" data-action="delete-project" data-project-id="${project.id}">删除</button></div></td></tr>`).join("")}</tbody></table></div>` : `<section class="app-card"><div class="app-empty"><div><div class="app-empty-mark"></div><div>未找到匹配项目</div><button class="app-button app-button-primary u-mt-3" type="button" data-action="project-reset">清除筛选</button></div></div></section>`}</main></div>`;
   }
 
   function renderProjectOptions() {
@@ -1087,14 +1113,13 @@
       ['月度水量差值', dmaQuantity(b.difference)], ['有效统计日数', `${b.days || 0} / ${b.totalDays || window.DMAStatistics.days(month)} 天`]
     ]) + links;
     const nameEditor = `<div class="dma-name-editor"><label class="app-form-item"><span class="app-form-label">分区名称</span><input id="dmaZoneName" class="app-input" maxlength="60" value="${escapeHtml(dma.name)}" ${readonly ? 'readonly' : ''}></label>${readonly ? '' : `<button class="app-button" data-action="save-dma-metadata" data-value="${escapeHtml(dma.id)}">保存名称</button>`}</div>`;
-    const scope = dma.definitionSource === 'user' ? fields([
-      ['范围说明', dma.note || '—'], ['起点节点', (dma.inletNodeIds || []).join('、') || '—'],
-      ...(dma.outletNodeIds?.length ? [['出口交界节点', dma.outletNodeIds.join('、')]] : []),
-      ...(dma.boundaryNodeIds?.length ? [['共用边界节点', dma.boundaryNodeIds.join('、')]] : [])
-    ]) : '';
-    return nameEditor + scope + metrics + fields([['分区 ID（系统设置）', dma.id], ['分区内设备数量', info.count + ' 台'], ['分区层级', dma.level + ' 级'], ['上级分区', findDma(dma.parent)?.name || '项目供水范围']])
-      + (dmaDemoEnabled() ? '<p class="app-text-tertiary">演示数据</p>' : '')
-      + fields([['成员点 / 管线', `${dma.nodeIds?.length || 0} / ${dma.pipeIds?.length || 0}`], ['边界管线', dma.boundaries?.length || 0]])
+    const assets=dmaAssetSummary(dma);
+    return nameEditor + metrics + fields([
+      ['阀门数量',assets.valves+' 个'],['用户端数量',assets.users+' 个'],['下级用户数量',assets.children+' 个'],
+      ['泵站数量',assets.pumps+' 个'],['消火栓数量',assets.hydrants+' 个'],['管线数量',assets.pipes+' 条'],
+      ['管线总长',assets.length==null?'—':lengthText(assets.length)+' m'],['监测设备数量',info.count+' 台']
+    ])
+      + (campusMeteringEnabled() ? '<p class="app-text-tertiary">预设设备 · 示例数据（非实测）</p>' : dmaDemoEnabled() ? '<p class="app-text-tertiary">演示数据</p>' : '')
       + links;
   }
 
@@ -1200,12 +1225,16 @@
 
   function p02BottomTabConfig(view) {
     if (view === "assets") return [["pipes", "管线"], ["valves", "阀门"], ["nodes", "连接节点"], ["users", "用户端"], ["hydrants", "消火栓"], ["facilities", "水厂与泵站"]];
-    if (view === "dma") return [["zones", "分区计量"], ["operations", "月度水量明细"], ["devices", "分区监测设备"]];
+    if (view === "dma") return [["zones", "分区计量"], ["operations", "月度水量明细"]];
     return [["pressure", "压力"], ["flow", "流量"], ["quality", "水质"], ["level", "水位"], ["noise", "噪声仪"], ["events", "报警与工单"]];
   }
 
   function bottomEmpty() {
     return '<div class="app-empty product-bottom-empty"><div><div class="app-empty-mark"></div><span>未找到匹配对象</span></div></div>';
+  }
+
+  function monitorStatus(item) {
+    return item.alarm?'报警':({GOOD:'正常',DELAYED:'数据异常',WARNING:'预警',MISSING:'缺测',UNBOUND:'未挂接',PARTIAL:'部分有效',BAD:'数据异常'}[item.quality]||'待核实');
   }
 
 
@@ -1228,7 +1257,6 @@
     if(["p13","p15"].includes(state.page))return renderBusinessRecords();
     const keyword = state.p02SearchQuery.trim().toLowerCase();
     const matches = item => !keyword || Object.values(item).some(value => String(value).toLowerCase().includes(keyword));
-    const monitorStatus = item => item.alarm ? "报警" : ({ GOOD: "正常", DELAYED: "延迟", WARNING: "预警", MISSING: "缺测", UNBOUND: "未挂接", PARTIAL: "部分有效" }[item.quality] || "待核实");
     const sortItems = (items, idKey = "id") => [...items].sort((a, b) => state.p02BottomSort === "id" ? String(a[idKey]).localeCompare(String(b[idKey]), "zh-CN") : String(a._status || a.status || "正常").localeCompare(String(b._status || b.status || "正常"), "zh-CN"));
     if (view === "operations") {
       if (activeTab === "events") {
@@ -1241,25 +1269,19 @@
       return `<table class="app-table"><thead><tr><th>监测点</th><th>名称</th><th>当前值</th><th>质量码</th><th>状态</th></tr></thead><tbody>${monitors.map(item => `<tr class="product-clickable-row" data-action="select-monitor" data-value="${item.id}" tabindex="0" role="button" aria-label="定位监测点 ${item.id}"><td><strong>${item.id}</strong></td><td>${item.name}</td><td>${item.value}</td><td>${item.quality}</td><td>${tag(item._status, item._status === "正常" ? "success" : item._status === "报警" ? "error" : "warning")}</td></tr>`).join("")}</tbody></table>`;
     }
     if (view === "dma") {
-      if (activeTab === "devices") {
-        const visibleDeviceIds = dmaVisibleDeviceIds();
-        const devices = sortItems(p02MonitorCatalog.filter(item => visibleDeviceIds.includes(item.id) && matches(item)).map(item => ({ ...item, _status: monitorStatus(item) })));
-        if (!devices.length) return bottomEmpty();
-        return `<table class="app-table"><thead><tr><th>设备</th><th>类型</th><th>当前值</th><th>质量码</th><th>状态</th></tr></thead><tbody>${devices.map(item => `<tr class="product-clickable-row" data-action="select-monitor" data-value="${item.id}" tabindex="0" role="button" aria-label="定位监测点 ${item.id}"><td><strong>${item.id}</strong></td><td>${({ flow: "流量监测点", pressure: "压力监测点", quality: "水质监测点", level: "水位监测点", noise: "噪声仪" }[item.type] || item.type)}</td><td>${item.value}</td><td>${item.quality}</td><td>${tag(item._status, item._status === "正常" ? "success" : "warning")}</td></tr>`).join("")}</tbody></table>`;
-      }
       const zones = sortItems(dmaChildren().filter(matches));
       if (!zones.length) return bottomEmpty();
       const month = dmaSelectedMonth();
       const heads = activeTab === 'operations'
         ? ['分区', '统计月份', '分区用水量（m³）', '平均压力（MPa）', '营收水量（m³）', '月度差值（m³）', '进口水量（m³）', '出口水量（m³）', '数据状态']
-        : ['分区名称 / 系统 ID', '统计月份', '分区用水量（m³）', '平均压力（MPa）', '营收水量（m³）', '设备数量', '层级 / 下级分区', '数据状态'];
+        : ['分区名称 / 系统 ID', '统计月份', '分区用水量（m³）', '平均压力（MPa）', '营收水量（m³）', '层级 / 下级分区', '数据状态'];
       return `<table class="app-table"><thead><tr>${heads.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${zones.map(dma => {
         const b = dma.balance || {}, info = dma.deviceSummary || dmaDeviceSummary(dma), children = dmaChildren(dma.id);
         const name = `<td><strong><i style="display:inline-block;width:10px;height:10px;margin-right:6px;border-radius:50%;background:${state.dmaZoneColors[dma.id]}"></i>${escapeHtml(dma.name)}</strong><small class="product-table-subline">${escapeHtml(dma.id)}</small></td>`;
         const core = `<td>${b.date || month}</td><td>${dmaQuantity(b.usage, '')}</td><td>${dmaQuantity(info.pressure, '')}</td><td>${dmaQuantity(b.revenue, '')}</td>`;
         const other = activeTab === 'operations'
           ? `<td>${dmaQuantity(b.difference, '')}</td><td>${dmaQuantity(b.inlet, '')}</td><td>${dmaQuantity(b.outlet, '')}</td>`
-          : `<td>${info.count}</td><td>${dma.level} 级 / ${children.length ? children.length + ' 个下级' : '末级'}</td>`;
+          : `<td>${dma.level} 级 / ${children.length ? children.length + ' 个下级' : '末级'}</td>`;
         return `<tr class="product-clickable-row" data-action="select-dma" data-value="${escapeHtml(dma.id)}" tabindex="0" role="button" aria-label="查看${escapeHtml(dma.name)}分区指标">${name}${core}${other}<td>${escapeHtml(b.usageStatus || '用水量待接入')}<small class="product-table-subline">${escapeHtml(b.revenueStatus || '营收水量待接入')}</small></td></tr>`;
       }).join('')}</tbody></table>`;
     }
@@ -1275,11 +1297,11 @@
   }
 
   function renderP02Bottom(view) {
-    const activeTab = state.p02BottomTabs[view];
+    const activeTab = view==='dma'&&state.p02BottomTabs[view]==='devices'?'zones':state.p02BottomTabs[view];
     const tabs = ["p13","p15"].includes(state.page)?[["events",state.page==="p13"?"当日报警":"工单任务"]]:p02BottomTabConfig(view);
     const title = state.page==="p13"?"当日报警":state.page==="p15"?"工单任务":view === "assets" ? "资产对象" : view === "dma" ? "DMA 分区对象" : "运维监测对象";
-    const placeholder = view === "assets" ? "查询资产编号、名称或规格" : view === "dma" ? "查询 DMA、设备或状态" : "查询监测点、名称或状态";
-    return `<section class="app-gis-bottom product-gis-bottom product-object-drawer ${state.p02BottomOpen ? "" : "is-collapsed"} ${state.p02BottomPageSize === 20 ? "is-page-size-20" : "is-page-size-10"}"><div class="app-gis-bottom-header product-bottom-drawer-header"><div><strong>${title}</strong><span class="app-text-tertiary">查询、筛选与排序</span></div><button class="app-button app-button-text app-button-icon" type="button" data-action="toggle-p02-bottom" aria-label="${state.p02BottomOpen ? "收起对象抽屉" : "展开对象抽屉"}">${state.p02BottomOpen ? "⌄" : "⌃"}</button></div>${state.p02BottomOpen ? `<div class="product-bottom-tabs">${tabs.map(tabItem => `<button class="product-bottom-tab ${activeTab === tabItem[0] ? "is-active" : ""}" type="button" data-action="p02-bottom-tab" data-value="${tabItem[0]}">${tabItem[1]}</button>`).join("")}</div><div class="product-bottom-filterbar"><input id="p02SearchInput" class="app-input" value="${escapeHtml(state.p02SearchQuery)}" placeholder="${placeholder}" /><select class="app-select" data-p02-bottom-sort><option value="status" ${state.p02BottomSort === "status" ? "selected" : ""}>按状态排序</option><option value="id" ${state.p02BottomSort === "id" ? "selected" : ""}>按编号排序</option></select><button class="app-button app-button-primary" type="button" data-action="search-object">查询</button><button class="app-button" type="button" data-action="reset-bottom-query">重置</button></div><div class="app-gis-bottom-body product-bottom-drawer-body">${renderP02BottomTable(view, activeTab)}</div>` : ""}</section>`;
+    const placeholder = view === "assets" ? "查询资产编号、名称或规格" : view === "dma" ? "查询 DMA 名称或状态" : "查询监测点、名称或状态";
+    return `<section class="app-gis-bottom product-gis-bottom product-object-drawer ${state.p02BottomOpen ? "" : "is-collapsed"} ${state.p02BottomPageSize === 20 ? "is-page-size-20" : "is-page-size-10"}"><div class="app-gis-bottom-header product-bottom-drawer-header"><div><strong>${title}</strong><span class="app-text-tertiary">查询、筛选与排序</span></div><button class="app-button app-button-text app-button-icon" type="button" data-action="toggle-p02-bottom" aria-label="${state.p02BottomOpen ? "收起对象抽屉" : "展开对象抽屉"}">${state.p02BottomOpen ? "⌄" : "⌃"}</button></div>${state.p02BottomOpen ? `<div class="product-bottom-tabs">${tabs.map(tabItem => `<button class="product-bottom-tab ${activeTab === tabItem[0] ? "is-active" : ""}" type="button" data-action="p02-bottom-tab" data-value="${tabItem[0]}">${tabItem[1]}</button>`).join("")}</div><div class="app-gis-bottom-body product-bottom-drawer-body">${renderP02BottomTable(view, activeTab)}</div>` : ""}</section>`;
   }
 
   function mapDateRangeDayCount(range) {
@@ -1296,6 +1318,7 @@
 
   function renderP02(view = p02ViewFromPage()) {
     const layers = {...state.p02LayersByView[view]};
+    if(view==='dma')for(const type of ['pressure','flow','quality','level','noise'])layers[type]=false;
     if(state.page==="p13"){layers.workorders=false;layers.quality=false;layers.flow=false;layers.level=false;}
     if(state.page==="p15"){layers.alarms=false;layers.quality=false;layers.pressure=false;layers.flow=false;layers.level=false;}
     const config = p02ViewConfig(view);
@@ -1303,7 +1326,7 @@
     const mapClasses = `${layers.basemap ? "" : " is-basemap-hidden"} product-map-view-${view} ${presentation.className}`;
     const viewToolButton = (value, label, icon) => `<button class="app-button app-button-icon product-map-tool-button" type="button" data-action="map-view" data-value="${value}" data-tooltip="${label}" title="${label}" aria-label="${label}">${mapToolIcon(icon)}</button>`;
     const dataScope = view === "operations" ? `${tag("最新监测", "success")}${tag("当日报警与工单", "blue")}` : view === "dma" ? ` ${tag("水量统计 " + dmaSelectedMonth(), "blue")}${tag("压力最新有效采样", "")}` : tag("当前有效资产", "success");
-    const mapOptions = { dma: view === "dma", quality: view === "operations" || view === "dma", level: view === "operations", operations: view === "operations", assetView: view === "assets", points: view !== "assets", expanded: true, layers, classificationContext: view === "dma" ? null : view };
+    const mapOptions = { dma: view === "dma", quality: view === "operations", level: view === "operations", operations: view === "operations", assetView: view === "assets", points: view === "operations", expanded: true, layers, classificationContext: view === "dma" ? null : view };
     return `<div class="product-page product-page-gis"><div class="product-gis-frame ${state.p02Drawer ? "has-detail" : ""} ${state.p02LayerOpen ? "" : "is-left-collapsed"}"><div class="product-gis-contextbar"><span class="product-gis-title">${config.title}</span><span class="app-text-secondary">${escapeHtml(activeProject().name)}</span><span class="product-current-data-scope">${dataScope}</span><div class="product-gis-contextbar-actions"><button class="app-button" type="button" data-action="global-search">对象列表</button>${config.action}</div></div><div class="product-gis-map${mapClasses}" style="${presentation.style}">${networkMap(mapOptions)}</div>
       ${state.p02LayerOpen ? `<aside class="app-gis-panel product-gis-panel product-gis-panel-left"><div class="app-gis-panel-header"><strong>${config.panel}</strong><button class="app-button app-button-text app-button-icon" type="button" data-action="toggle-layer-drawer" aria-label="收起图层抽屉">‹</button></div><div class="app-gis-panel-body">${renderP02Left(view, layers)}</div></aside>` : `<button class="product-layer-drawer-trigger" type="button" data-action="toggle-layer-drawer" aria-label="展开图层抽屉">图层</button>`}
       <div class="app-gis-toolbar product-gis-toolbar" aria-label="地图查看工具">${viewToolButton("reset", "复位地图", "extent")}${viewToolButton("zoom-in", "放大地图", "zoomIn")}${viewToolButton("zoom-out", "缩小地图", "zoomOut")}<span class="product-map-zoom-label">L${presentation.level} · ${state.p02Zoom}%</span></div>
@@ -1330,11 +1353,11 @@
 
   function renderP02SearchResults(view) {
     const keyword = state.p02SearchQuery.trim().toLowerCase();
-    const pipeResults = p02PipeCatalog.filter(item => !keyword || [item.id, item.name, item.diameter, item.material, item.sourceDescription, item.sourceTag].some(value => String(value||'').toLowerCase().includes(keyword))).map(item => ({ ...item, kind: "pipe" }));
+    const pipeResults = p02PipeCatalog.filter(item => !keyword || [item.id, item.name, item.diameter, item.material].some(value => String(value||'').toLowerCase().includes(keyword))).map(item => ({ ...item, kind: "pipe" }));
     const monitorResults = p02MonitorCatalog.filter(item => !keyword || [item.id, item.name, item.location, item.type].some(value => value.toLowerCase().includes(keyword))).map(item => ({ ...item, kind: "monitor" }));
     const dmaResults = p02DmaCatalog.filter(item => !keyword || [item.id, item.name].some(value => value.toLowerCase().includes(keyword))).map(item => ({ ...item, kind: "dma" }));
-    const assetResults = p02AssetCatalog.filter(item => !keyword || [item.id, item.name, item.type, item.model, item.location, item.sourceDescription, item.sourceTag].some(value => String(value||'').toLowerCase().includes(keyword))).map(item => ({ ...item, kind: "asset" }));
-    const results = (view === "dma" ? [...dmaResults, ...monitorResults.filter(item => item.type === "flow" || item.type === "pressure")] : view === "assets" ? [...assetResults, ...pipeResults] : monitorResults).slice(0, 8);
+    const assetResults = p02AssetCatalog.filter(item => !keyword || [item.id, item.name, item.type, item.model, item.location].some(value => String(value||'').toLowerCase().includes(keyword))).map(item => ({ ...item, kind: "asset" }));
+    const results = (view === "dma" ? dmaResults : view === "assets" ? [...assetResults, ...pipeResults] : monitorResults).slice(0, 8);
     if (state.p02SearchExecuted && !results.length) return '<div class="app-empty product-search-empty"><div><div class="app-empty-mark"></div><span>未找到匹配对象</span></div></div>';
     return `<div class="product-selection-list">${results.map(item => `<button class="product-selection-item" type="button" data-action="${item.kind === "pipe" ? "select-pipe" : item.kind === "monitor" ? "select-monitor" : item.kind === "asset" ? "select-asset" : "select-dma"}" data-value="${item.id}" ${item.kind === "pipe" ? `data-pipe-id="${item.id}"` : ""}><span><strong>${item.id}</strong><small>${item.name}</small></span><small>${item.kind === "pipe" ? item.diameter : item.kind === "monitor" ? item.value : item.kind === "asset" ? item.type : item.status}</small></button>`).join("")}</div>`;
   }
@@ -1357,17 +1380,13 @@
   }
 
   function renderLayerRow(context, layers, key, label, count = "", configurable = true) {
-    if(topologyReadModel){
-      const types={nodes:'node',valves:'valve',plants:'plant',pumps:'pump',users:'user',hydrants:'hydrant'};
-      if(types[key])count=topologyReadModel.data.nodes.filter(n=>(window.WaterStandard?.kind(n)||n.type)===types[key]).length;
-      if(key==='pipes')count=topologyReadModel.pipes.length;
-      if(key==='dma')count=topologyReadModel.zones.length;
-      if(['pressure','flow','quality','level'].includes(key))count=topologyReadModel.monitors.filter(m=>m.type===key&&topologyReadModel.objects.has(m.hostId)).length;
-      if(['alarms','workorders'].includes(key))count=topologyReadModel.events.filter(e=>e.type===(key==='alarms'?'alarm':'workorder')&&topologyReadModel.objects.has(e.hostId)).length;
-    }
     if(topologyReadModel){const model=topologyReadModel,map={nodes:'node',valves:'valve',plants:'plant',pumps:'pump',users:'user',hydrants:'hydrant'};if(key==='pipes')count=context==='assets'?String(model.data.pipes.length):`${lengthText(model.totalLength/1000)} km`;else if(map[key])count=String(model.data.nodes.filter(n=>(window.WaterStandard?.kind(n)||n.type)===map[key]).length);else if(key==='dma')count=String(model.zones.length);else if(['flow','pressure','quality','level','noise'].includes(key))count=String(model.monitors.filter(m=>m.type===key).length);else if(key==='alarms'||key==='workorders')count=String(model.events.filter(e=>e.type===(key==='alarms'?'alarm':'workorder')).length);}
     const input = context === "scada" ? `data-p10-layer="${key}"` : `data-p02-layer="${key}" data-p02-view="${context}"`;
     return `<div class="product-layer-control-row"><label class="product-checkbox-row"><input type="checkbox" ${input} ${layers[key] ? "checked" : ""} /><span>${label}</span>${count ? `<span class="product-panel-count">${count}</span>` : ""}</label>${configurable ? `<button class="product-layer-style-button" type="button" data-action="open-layer-style" data-style-context="${context}" data-style-layer="${key}" aria-label="配置${label}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h3M11 12h9M4 18h8M16 18h4"></path><circle cx="16" cy="6" r="2"></circle><circle cx="9" cy="12" r="2"></circle><circle cx="14" cy="18" r="2"></circle></svg></button>` : ""}</div>`;
+  }
+
+  function renderMonitorLayerRows(row) {
+    return [['pressure','压力'],['flow','流量'],['quality','水质'],['level','水位'],['noise','噪声仪'],['hydrants','消火栓']].map(([key,label])=>row(key,label)).join('');
   }
 
   function mapStyleSelectOptions(min, max, current, suffix = "") {
@@ -1418,7 +1437,7 @@
   function renderP02Left(view, layers) {
     const row = (key, label, count = "", configurable = true) => renderLayerRow(view, layers, key, label, count, configurable);
     if (["p13","p15"].includes(state.page)) return `<div class="product-panel-section"><strong>业务图层</strong>${row("basemap","基础底图","",false)}${row("pipes","管网骨架","",false)}${state.page==="p13"?row("pressure","关联压力点")+row("alarms","当日报警"):row("workorders","工单与巡检")}${row("labels","业务标注")}</div>`;
-    if (view === "dma") return `<div class="product-panel-section"><strong>分区底图</strong>${row("basemap", "基础底图", "", false)}${row("pipes", "分区管网", "1,286 km", false)}${row("dma", "DMA 分区面", "11")}${row("valves", isCampusProject()?"阀门":"边界阀门", "68")}</div><div class="product-panel-section"><strong>分区监测</strong>${row("flow", "进出口流量设备", "42")}${row("pressure", "压力监测设备", "86")}${row("quality", "水质指标", "18")}</div><div class="product-panel-section"><strong>专题标注</strong>${row("labels", "分区与指标标注")}</div>`;
+    if (view === "dma") return `<div class="product-panel-section"><strong>分区底图</strong>${row("basemap", "基础底图", "", false)}${row("pipes", "分区管网", "", false)}${row("dma", "DMA 分区面")}${row("valves", isCampusProject()?"阀门":"边界阀门")}${row("users", "用户端")}</div><div class="product-panel-section"><strong>专题标注</strong>${row("labels", "分区与用户标注")}</div>`;
     if (view === "assets") return `<div class="product-panel-section"><strong>基础资产</strong>${row("basemap", "基础底图", "", false)}${row("pipes", "管线", "2,836")}${row("nodes", "连接节点", "2,418")}${row("valves", "阀门", "728")}</div><div class="product-panel-section"><strong>设施资产</strong>${row("plants", "水厂", "3")}${row("pumps", "泵站", "12")}${row("users", "用户端", "4")}${row("hydrants", "消火栓", "")}</div><div class="product-panel-section"><strong>资产标注</strong>${row("labels", "资产名称与编号")}</div>`;
     return `<div class="product-panel-section"><strong>运行底图</strong>${row("basemap", "基础底图", "", false)}${row("pipes", "管网骨架", `${(topologyReadModel.totalLength/1000).toFixed(2)} km`, false)}</div><div class="product-panel-section"><strong>实时监测</strong>${row("pressure", "压力", p02MonitorCatalog.filter(m=>m.type==="pressure").length)}${row("flow", "流量", p02MonitorCatalog.filter(m=>m.type==="flow").length)}${row("quality", "水质", p02MonitorCatalog.filter(m=>m.type==="quality").length)}${row("level", "水位", p02MonitorCatalog.filter(m=>m.type==="level").length)}${row("noise", "噪声仪", "")}${row("hydrants", "消火栓", "")}</div><div class="product-panel-section"><strong>运维业务</strong>${row("alarms", "报警", "3")}${row("workorders", "工单", "4")}</div><div class="product-panel-section"><strong>业务标注</strong>${row("labels", "监测、报警与工单")}</div>`;
   }
@@ -1426,7 +1445,7 @@
 
   function topologyStore() {
     const key=state.activeProjectId || activeProject()?.id;
-    if(key===window.CampusProject?.projectId)window.CampusProject.initialize();
+    if(key===window.CampusProject?.projectId){window.CampusProject.initialize();window.CampusMetering?.initialize();}
     if(!state.topologyProjects[key]){try{const saved=JSON.parse(localStorage.getItem('water-topology-store:'+key));if(saved?.versions?.length&&Array.isArray(saved.bindings)&&Array.isArray(saved.bindingHistory))state.topologyProjects[key]=saved;}catch(_){}}
     if(!state.topologyProjects[key]&&key===window.SuizhouProject?.projectId)state.topologyProjects[key]=window.SuizhouProject.store();
     if(!state.topologyProjects[key]) state.topologyProjects[key]={
@@ -1495,7 +1514,7 @@
   function renderP03(){
     const rows=topologyStore().versions.filter(t=>(!state.topologyQuery||t.name.includes(state.topologyQuery))&&(!state.topologyStatus||t.status===state.topologyStatus));
     return `<div class="product-page product-page-stack">${pageHeader("p03",'<button class="app-button app-button-primary" data-action="topology-new">新建拓扑</button>')}
-      <section class="app-search-panel"><div class="product-bottom-filterbar"><input id="topologyQuery" class="app-input" placeholder="查询拓扑名称" value="${escapeHtml(state.topologyQuery)}"><select id="topologyStatus" class="app-select" aria-label="拓扑状态"><option value="">全部状态</option>${["已发布","使用中","编辑中","已废弃"].map(v=>`<option ${state.topologyStatus===v?"selected":""}>${v}</option>`).join("")}</select><button class="app-button app-button-primary" data-action="topology-query">查询</button><button class="app-button" data-action="topology-reset">重置</button></div></section>
+
       <div class="app-alert"><div><strong>使用中：${activeTopology()?.name||"未设置"}</strong><div></div></div></div>
       <div class="app-table-wrap"><table class="app-table"><thead><tr><th>版本</th><th>拓扑名称</th><th>状态</th><th>发布时间</th><th>操作</th></tr></thead><tbody>${rows.map(t=>`<tr><td>${t.id}</td><td><strong>${t.name}</strong></td><td>${tag(t.status,t.status==="使用中"?"success":t.status==="编辑中"?"warning":t.status==="已发布"?"blue":"")}</td><td>${t.published}</td><td><div class="app-table-actions"><button class="app-button app-button-link" data-action="topology-open" data-value="${t.id}">${t.id==="T0"?"查看":"编辑"}</button><button class="app-button app-button-link" data-action="topology-devices" data-value="${t.id}">设备配置</button><button class="app-button app-button-link" data-action="topology-copy" data-value="${t.id}">基于此创建</button>${t.status==="编辑中"?`<button class="app-button app-button-link" data-action="topology-publish" data-value="${t.id}">发布</button>`:""}${t.status==="已发布"?`<button class="app-button app-button-link" data-action="topology-use" data-value="${t.id}">设为使用中</button>`:""}${["编辑中","已发布"].includes(t.status)?`<button class="app-button app-button-link app-text-danger" data-action="topology-retire" data-value="${t.id}">废弃</button>`:""}<button class="app-button app-button-link" data-action="topology-export" data-value="${t.id}">导出</button><button class="app-button app-button-link" data-action="topology-compare" data-value="${t.id}">对比</button></div></td></tr>`).join("")}</tbody></table></div></div>`;
   }
@@ -1756,7 +1775,10 @@
     if(!versions.some(v=>v.id===state.compareBaseline))state.compareBaseline=topologyStore().comparisonBaseline||versions.find(v=>v.id!==state.selectedTopology)?.id||state.selectedTopology;
     const before=compareSnapshot(state.compareBaseline),after=topologyReadRenderer.s.data;
     const rows=[],allRows=[];
-    const names={id:'对象编号',type:'对象类型',name:'名称',x:'X 坐标',y:'Y 坐标',elevation:'高程（m）',diameter:'管径（mm）',start:'上游节点',end:'下游节点',a:'起点坐标',b:'终点坐标',length:'管长（m）',material:'材质',startElevation:'起点高程（m）',endElevation:'终点高程（m）',parent:'上级分区',nodeIds:'成员点',pipeIds:'成员管线',devices:'设备集合',rule:'处理规则',metric:'数据类型',host:'挂接对象',age:'管龄（年）'};
+    // Only product fields participate in the visible comparison. Import metadata
+    // stays in the saved snapshot and must never become a UI field by enumeration.
+    const names={id:'对象编号',type:'对象类型',name:'名称',x:'X 坐标',y:'Y 坐标',elevation:'高程（m）',diameter:'管径（mm）',start:'上游节点',end:'下游节点',a:'起点坐标',b:'终点坐标',length:'管长（m）',material:'材质',startElevation:'起点高程（m）',endElevation:'终点高程（m）',geometry:'管线路径',userSubtype:'用户类型',state:'运行状态',headM:'水源总水头（m）',roughness:'粗糙系数',minorLoss:'局部损失系数',parent:'上级分区',nodeIds:'成员点',pipeIds:'成员管线',boundary:'分区边界',color:'分区颜色',buildings:'包含建筑',inletNodeIds:'起点节点',outletNodeIds:'出口交界节点',boundaryNodeIds:'共用边界节点',inletPipeIds:'入口管线',outletPipeIds:'出口管线',boundaryWidthM:'包络总宽度（m）',boundaryAreaM2:'分区面积（m²）',note:'分区说明',devices:'设备集合',rule:'处理规则',metric:'数据类型',host:'挂接对象',age:'管龄（年）'};
+    const productFields=(old,now)=>Object.keys(names).filter(k=>Object.hasOwn(old||{},k)||Object.hasOwn(now||{},k));
     const fieldName=k=>names[k]||k;
     const enumNames={node:'连接节点',cap:'堵头',user:'用户端',valve:'阀门',pump:'泵站',plant:'水厂',pipe:'管线',zone:'DMA 分区',sum:'加和',average:'平均',flow:'流量',pressure:'压力',quality:'余氯',level:'水位'};
     const same=(k,a,b)=>JSON.stringify(['nodeIds','pipeIds','devices'].includes(k)&&Array.isArray(a)?[...a].sort():a)===JSON.stringify(['nodeIds','pipeIds','devices'].includes(k)&&Array.isArray(b)?[...b].sort():b);
@@ -1764,7 +1786,7 @@
       const a=new Map(before[key].map(o=>[o.id,o])),b=new Map(after[key].map(o=>[o.id,o]));
       for(const id of new Set([...a.keys(),...b.keys()])){
         const old=a.get(id),now=b.get(id);
-        const fields=[...new Set([...Object.keys(old||{}),...Object.keys(now||{})])].filter(k=>!same(k,old?.[k],now?.[k]));
+        const fields=productFields(old,now).filter(k=>!same(k,old?.[k],now?.[k]));
         const row={id,label,old,now,fields,change:!old?"新增":!now?"删除":fields.length?"修改":"未变化"};
         allRows.push(row);if(fields.length)rows.push(row);
       }
@@ -1793,7 +1815,7 @@
       const wrapper=document.createElement("div");wrapper.innerHTML=renderer.map(true,{dma:true,points:false,selectedIds:selectedId?[selectedId]:[]});
       wrapper.querySelectorAll("[data-action]").forEach(el=>{
         el.dataset.action="actual-compare-object";
-        if(el.classList.contains('we-node'))el.style.setProperty('pointer-events','bounding-box','important');
+        if(el.classList.contains('we-node'))el.style.setProperty('pointer-events','visiblePainted','important');
         const row=rows.find(r=>r.id===el.dataset.value);
         if(row)el.classList.add(row.change==='新增'?'cmp-added':row.change==='删除'?'cmp-removed':'cmp-changed');
         if(el.dataset.value===selectedId)el.classList.add('cmp-selected');
@@ -1802,8 +1824,9 @@
       wrapper.querySelector('svg').setAttribute('viewBox',sharedView.join(' '));
       return `<article class="product-map-compare-pane"><header><strong>${escapeHtml(id)}</strong><span>${selectedId&&!exists?'本版本无此对象':''}</span></header><div class="product-map-compare-canvas">${wrapper.innerHTML}</div></article>`;
     };
-    const format=(v,k)=>v===undefined||v===null||v===''?'—':escapeHtml(k==='length'?lengthText(v):Array.isArray(v)?v.join('、'):typeof v==='object'?`X：${v.x}，Y：${v.y}`:['type','rule','metric'].includes(k)?enumNames[v]||v:String(v));
-    const detail=selected?`<section class="app-card"><div class="app-card-header"><h2 class="app-card-title">${escapeHtml(selected.host||selected.id)} · ${selected.change} · 属性对照</h2></div><table class="app-table"><thead><tr><th>字段</th><th>基准值</th><th>当前值</th></tr></thead><tbody>${[...new Set([...Object.keys(selected.old||{}),...Object.keys(selected.now||{})])].map(k=>`<tr><td>${escapeHtml(fieldName(k))}${selected.fields.includes(k)?" · 变化":""}</td><td>${format(selected.old?.[k],k)}</td><td>${format(selected.now?.[k],k)}</td></tr>`).join("")}</tbody></table></section>`:"";
+    const coordinate=v=>Array.isArray(v)?`X：${v[0]}，Y：${v[1]}`:`X：${v.x}，Y：${v.y}`;
+    const format=(v,k)=>v===undefined||v===null||v===''?'—':escapeHtml(k==='length'?lengthText(v):Array.isArray(v)?v.map(item=>item&&typeof item==='object'?coordinate(item):item).join('、'):typeof v==='object'?coordinate(v):['type','rule','metric'].includes(k)?enumNames[v]||v:String(v));
+    const detail=selected?`<section class="app-card"><div class="app-card-header"><h2 class="app-card-title">${escapeHtml(selected.host||selected.id)} · ${selected.change} · 属性对照</h2></div><table class="app-table"><thead><tr><th>字段</th><th>基准值</th><th>当前值</th></tr></thead><tbody>${productFields(selected.old,selected.now).map(k=>`<tr><td>${escapeHtml(fieldName(k))}${selected.fields.includes(k)?" · 变化":""}</td><td>${format(selected.old?.[k],k)}</td><td>${format(selected.now?.[k],k)}</td></tr>`).join("")}</tbody></table></section>`:"";
     const bindingTable=`<section class="app-card"><div class="app-card-header"><h2 class="app-card-title">挂接差异 · ${bindingDiffs.length}</h2></div><table class="app-table"><thead><tr><th>挂接对象</th><th>数据类型</th><th>变化</th><th>字段</th><th>操作</th></tr></thead><tbody>${bindingDiffs.map(r=>`<tr><td>${escapeHtml(r.host)}</td><td>${format((r.now||r.old).metric,'metric')}</td><td>${r.change}</td><td>${r.fields.map(fieldName).join('、')}</td><td><button class="app-button app-button-link" data-action="actual-compare-object" data-value="${escapeHtml(r.id)}">查看</button></td></tr>`).join('')||'<tr><td colspan="5">无挂接配置差异</td></tr>'}</tbody></table></section>`;
     if(!summary){
       const M=window.WaterMapLayout,objectRows=`<div class="map-table-scroll"><table class="app-table"><thead><tr><th>对象编号</th><th>类型</th><th>变化</th><th>变化字段</th><th>操作</th></tr></thead><tbody>${allRows.map(r=>`<tr><td>${escapeHtml(r.id)}</td><td>${r.label}</td><td>${r.change}</td><td>${escapeHtml(r.fields.map(fieldName).join('、'))||'—'}</td><td><button class="app-button app-button-link" data-action="actual-compare-object" data-value="${escapeHtml(r.id)}">查看 / 定位</button></td></tr>`).join('')}</tbody></table></div>`;
@@ -1818,20 +1841,20 @@
 
   function renderP10Left() {
     const row = (key, label, count = "", configurable = true) => renderLayerRow("scada", state.p10Layers, key, label, count, configurable);
-    return `<div class="product-panel-section"><strong>监测底图</strong>${row("basemap", "基础底图", "", false)}${row("pipes", "管网骨架", "1,286 km", false)}</div><div class="product-panel-section"><strong>实时监测</strong>${row("pressure", "压力", "86")}${row("flow", "流量", "42")}${row("quality", "水质", "18")}${row("level", "水位", "12")}${row("noise", "噪声仪", "")}${row("hydrants", "消火栓", "")}</div><div class="product-panel-section"><strong>监测标注</strong>${row("labels", "监测值与状态")}</div>`;
+    return `<div class="product-panel-section"><strong>监测底图</strong>${row("basemap", "基础底图", "", false)}${row("pipes", "管网骨架", "", false)}</div><div class="product-panel-section"><strong>实时监测</strong>${renderMonitorLayerRows(row)}</div><div class="product-panel-section"><strong>监测标注</strong>${row("labels", "监测值与状态")}</div>`;
   }
 
   function renderP10Bottom() {
     const tabs = [["users", "用户用水"], ["pressure", "压力"], ["flow", "流量"], ["quality", "水质"], ["level", "水位"], ["noise", "噪声仪"]];
     const keyword = state.p10Query.trim().toLowerCase();
-    const statusOf = item => item.alarm ? "报警" : item.quality === "DELAYED" ? "数据异常" : item.quality === "WARNING" ? "预警" : "正常";
+    const statusOf = monitorStatus;
     let monitors = p02MonitorCatalog.filter(item => item.type === state.p10BottomTab && (!keyword || [item.id, item.name, item.location, item.value].some(value => value.toLowerCase().includes(keyword)))).map(item => ({ ...item, _status: statusOf(item) }));
     if (state.p10Status !== "all") monitors = monitors.filter(item => item._status === state.p10Status);
     monitors.sort((a, b) => state.p10Sort === "id" ? a.id.localeCompare(b.id) : a._status.localeCompare(b._status, "zh-CN"));
     const users=(topologyReadModel?.data.nodes||[]).filter(o=>window.WaterUserHierarchy?.eligible(o)&&(!keyword||[o.id,o.name].some(v=>v.toLowerCase().includes(keyword))));
     const userRows=`<table class="app-table"><thead><tr><th>用户编号</th><th>用户名称</th><th>子用户数</th><th>楼栋设备数</th><th>操作</th></tr></thead><tbody>${users.map(o=>{const n=window.WaterUserHierarchy.summary(topologyReadModel.data,o.id);return `<tr><td>${escapeHtml(o.id)}</td><td>${escapeHtml(o.name)}</td><td>${n.children}</td><td>${n.devices}</td><td><button class="app-button app-button-link" data-action="open-user-monitor" data-value="${escapeHtml(o.id)}">查看用水监测</button></td></tr>`;}).join('')}</tbody></table>`;
-    const rows = state.p10BottomTab==='users'?userRows:monitors.length ? `<table class="app-table"><thead><tr><th>监测点</th><th>名称</th><th>当前值</th><th>数据时间</th><th>质量码</th><th>状态</th></tr></thead><tbody>${monitors.map(item => `<tr class="product-clickable-row" data-action="select-monitor" data-value="${item.id}" tabindex="0" role="button" aria-label="定位监测点 ${item.id}"><td><strong>${item.id}</strong></td><td>${item.name}</td><td>${item.value}</td><td>14:32:18</td><td>${item.quality}</td><td>${tag(item._status, item._status === "正常" ? "success" : item._status === "报警" ? "error" : "warning")}</td></tr>`).join("")}</tbody></table>` : bottomEmpty();
-    return `<section data-user-ledger="${state.p10BottomTab==='users'}" class="app-gis-bottom product-gis-bottom product-object-drawer ${state.p10BottomOpen ? "" : "is-collapsed"} ${state.p10BottomPageSize === 20 ? "is-page-size-20" : "is-page-size-10"}"><div class="app-gis-bottom-header product-bottom-drawer-header"><div><strong>SCADA 监测对象</strong><span class="app-text-tertiary">查询、筛选与排序</span></div><button class="app-button app-button-text app-button-icon" type="button" data-action="toggle-p10-bottom" aria-label="${state.p10BottomOpen ? "收起监测对象抽屉" : "展开监测对象抽屉"}">${state.p10BottomOpen ? "⌄" : "⌃"}</button></div>${state.p10BottomOpen ? `<div class="product-bottom-tabs">${tabs.map(tabItem => `<button class="product-bottom-tab ${state.p10BottomTab === tabItem[0] ? "is-active" : ""}" type="button" data-action="p10-bottom-tab" data-value="${tabItem[0]}">${tabItem[1]}</button>`).join("")}</div><div class="product-bottom-filterbar"><input id="p10SearchInput" class="app-input" value="${escapeHtml(state.p10Query)}" placeholder="${state.p10BottomTab==='users'?'查询用户编号或名称':'查询监测点、名称或当前值'}" /><div class="product-bottom-status-filter">${[["all", "全部"], ["正常", "正常"], ["预警", "预警"], ["报警", "报警"], ["数据异常", "数据异常"]].map(item => `<button class="app-button app-button-small ${state.p10Status === item[0] ? "app-button-primary" : ""}" type="button" data-action="p10-status" data-value="${item[0]}">${item[1]}</button>`).join("")}</div><select class="app-select" data-p10-bottom-sort><option value="status" ${state.p10Sort === "status" ? "selected" : ""}>按状态排序</option><option value="id" ${state.p10Sort === "id" ? "selected" : ""}>按编号排序</option></select><button class="app-button app-button-primary" type="button" data-action="p10-search">查询</button><button class="app-button" type="button" data-action="p10-reset">重置</button></div><div class="app-gis-bottom-body product-bottom-drawer-body">${rows}</div>` : ""}</section>`;
+    const rows = state.p10BottomTab==='users'?userRows:monitors.length ? `<table class="app-table"><thead><tr><th>监测点</th><th>名称</th><th>当前值</th><th>数据时间</th><th>质量码</th><th>状态</th></tr></thead><tbody>${monitors.map(item => `<tr class="product-clickable-row" data-action="select-monitor" data-value="${item.id}" tabindex="0" role="button" aria-label="定位监测点 ${item.id}"><td><strong>${item.id}</strong></td><td>${item.name}</td><td>${item.value}</td><td>${escapeHtml(item.sampleTime||'—')}</td><td>${item.quality}</td><td>${tag(item._status, item._status === "正常" ? "success" : item._status === "报警" ? "error" : "warning")}</td></tr>`).join("")}</tbody></table>` : bottomEmpty();
+    return `<section data-user-ledger="${state.p10BottomTab==='users'}" class="app-gis-bottom product-gis-bottom product-object-drawer ${state.p10BottomOpen ? "" : "is-collapsed"} ${state.p10BottomPageSize === 20 ? "is-page-size-20" : "is-page-size-10"}"><div class="app-gis-bottom-header product-bottom-drawer-header"><div><strong>SCADA 监测对象</strong><span class="app-text-tertiary">查询、筛选与排序</span></div><button class="app-button app-button-text app-button-icon" type="button" data-action="toggle-p10-bottom" aria-label="${state.p10BottomOpen ? "收起监测对象抽屉" : "展开监测对象抽屉"}">${state.p10BottomOpen ? "⌄" : "⌃"}</button></div>${state.p10BottomOpen ? `<div class="product-bottom-tabs">${tabs.map(tabItem => `<button class="product-bottom-tab ${state.p10BottomTab === tabItem[0] ? "is-active" : ""}" type="button" data-action="p10-bottom-tab" data-value="${tabItem[0]}">${tabItem[1]}</button>`).join("")}</div><div class="app-gis-bottom-body product-bottom-drawer-body">${rows}</div>` : ""}</section>`;
   }
 
   function renderP10() {
@@ -1846,7 +1869,7 @@
       ${state.p10LayerOpen ? `<aside class="app-gis-panel product-gis-panel product-gis-panel-left"><div class="app-gis-panel-header"><strong>SCADA 图层</strong><button class="app-button app-button-text app-button-icon" type="button" data-action="toggle-layer-drawer" aria-label="收起图层抽屉">‹</button></div><div class="app-gis-panel-body">${renderP10Left()}</div></aside>` : `<button class="product-layer-drawer-trigger" type="button" data-action="toggle-layer-drawer" aria-label="展开图层抽屉">图层</button>`}
       <div class="app-gis-toolbar product-gis-toolbar" aria-label="地图查看工具"><button class="app-button app-button-icon product-map-tool-button" type="button" data-action="map-view" data-value="reset" data-tooltip="复位地图" title="复位地图" aria-label="复位地图">${mapToolIcon("extent")}</button><button class="app-button app-button-icon product-map-tool-button" type="button" data-action="map-view" data-value="zoom-in" data-tooltip="放大地图" title="放大地图" aria-label="放大地图">${mapToolIcon("zoomIn")}</button><button class="app-button app-button-icon product-map-tool-button" type="button" data-action="map-view" data-value="zoom-out" data-tooltip="缩小地图" title="缩小地图" aria-label="缩小地图">${mapToolIcon("zoomOut")}</button><span class="product-map-zoom-label">L${presentation.level} · ${state.p10Zoom}%</span></div>
       ${renderPipeClassificationLegend("scada", state.p10Layers)}
-${state.layerStyleEditor?.context==="scada"?`<aside class="app-gis-panel product-gis-panel product-gis-panel-right" aria-label="图层样式设置">${renderLayerStyleEditor("scada",state.layerStyleEditor.layer)}</aside>`:userDrawer?`<aside class="app-gis-panel product-gis-panel product-gis-panel-right"><div class="app-gis-panel-header"><strong>${escapeHtml(user.name)} · 用户用水监测</strong><button class="app-button" data-action="close-p10-detail">关闭</button></div><div class="app-gis-panel-body product-detail-stack">${window.WaterUserHierarchy.render(topologyReadModel.data,user.id,'monitor')}</div></aside>`:state.p10Drawer?`      <aside class="app-gis-panel product-gis-panel product-gis-panel-right"><div class="app-gis-panel-header"><div><strong>${monitor.id} ${monitor.name}</strong><div class="app-text-tertiary">${typeLabel} · 最新监测</div></div><button class="app-button" data-action="close-p10-detail">关闭</button></div><div class="app-gis-panel-body product-detail-stack"><div class="u-flex u-justify-between">${tag(monitor.alarm ? "报警" : "在线", monitor.alarm ? "error" : "success")}${tag(monitor.quality, monitor.quality === "GOOD" ? "success" : "warning")}</div><div class="product-drawer-kpi ${monitor.alarm ? "is-warning" : ""}"><div class="app-statistic-label">当前值</div><div class="app-statistic-value">${monitor.value}</div><div class="app-statistic-meta">数据时间 14:32:18</div></div><div class="app-descriptions"><div class="app-description-item"><div class="app-description-label">监测类型</div><div class="app-description-value">${typeLabel}</div></div><div class="app-description-item"><div class="app-description-label">挂接位置</div><div class="app-description-value">${monitor.location}</div></div><div class="app-description-item"><div class="app-description-label">所属项目</div><div class="app-description-value">${escapeHtml(activeProject().name)}</div></div><div class="app-description-item"><div class="app-description-label">质量码</div><div class="app-description-value">${monitor.quality}</div></div></div>${monitor.devices?.length?monitor.devices.map(id=>`<button class="app-button" data-action="standard-device-data" data-value="${escapeHtml(id)}">${escapeHtml(id)} · 查看数据</button>`).join(''):trend(monitor.alarm ? "is-warning" : "")}<button class="app-button app-button-primary" type="button" data-action="open-monitor-trend" data-value="${escapeHtml(monitor.id)}">查看完整趋势</button></div></aside>`:''}${renderP10Bottom()}</div></div>`;
+${state.layerStyleEditor?.context==="scada"?`<aside class="app-gis-panel product-gis-panel product-gis-panel-right" aria-label="图层样式设置">${renderLayerStyleEditor("scada",state.layerStyleEditor.layer)}</aside>`:userDrawer?`<aside class="app-gis-panel product-gis-panel product-gis-panel-right"><div class="app-gis-panel-header"><strong>${escapeHtml(user.name)} · 用户用水监测</strong><button class="app-button" data-action="close-p10-detail">关闭</button></div><div class="app-gis-panel-body product-detail-stack">${window.WaterUserHierarchy.render(topologyReadModel.data,user.id,'monitor')}</div></aside>`:state.p10Drawer?`      <aside class="app-gis-panel product-gis-panel product-gis-panel-right"><div class="app-gis-panel-header"><div><strong>${monitor.id} ${monitor.name}</strong><div class="app-text-tertiary">${typeLabel} · 最新监测</div></div><button class="app-button" data-action="close-p10-detail">关闭</button></div><div class="app-gis-panel-body product-detail-stack"><div class="u-flex u-justify-between">${tag(monitor.alarm ? "报警" : "在线", monitor.alarm ? "error" : "success")}${tag(monitor.quality, monitor.quality === "GOOD" ? "success" : "warning")}</div><div class="product-drawer-kpi ${monitor.alarm ? "is-warning" : ""}"><div class="app-statistic-label">当前值</div><div class="app-statistic-value">${monitor.value}</div><div class="app-statistic-meta">数据时间 ${escapeHtml(monitor.sampleTime||"—")}${monitor.demo?" · 示例非实测":""}</div></div><div class="app-descriptions"><div class="app-description-item"><div class="app-description-label">监测类型</div><div class="app-description-value">${typeLabel}</div></div><div class="app-description-item"><div class="app-description-label">挂接位置</div><div class="app-description-value">${monitor.location}</div></div><div class="app-description-item"><div class="app-description-label">所属项目</div><div class="app-description-value">${escapeHtml(activeProject().name)}</div></div><div class="app-description-item"><div class="app-description-label">质量码</div><div class="app-description-value">${monitor.quality}</div></div></div>${monitor.devices?.length?monitor.devices.map(id=>`<button class="app-button" data-action="standard-device-data" data-value="${escapeHtml(id)}">${escapeHtml(id)} · 查看数据</button>`).join(''):trend(monitor.alarm ? "is-warning" : "")}<button class="app-button app-button-primary" type="button" data-action="open-monitor-trend" data-value="${escapeHtml(monitor.id)}">查看完整趋势</button></div></aside>`:''}${renderP10Bottom()}</div></div>`;
   }
 
   let monitorHistoryUI;
@@ -1972,6 +1995,12 @@ ${state.layerStyleEditor?.context==="scada"?`<aside class="app-gis-panel product
 
   function renderHistoryBottom(kind) {
     const records = historyRecords(kind);
+    if(window.WaterTable){
+      const columns=[['归档时间','time'],['对象编号','id'],['对象名称','object'],['记录类型','metric'],['历史值','value'],['状态','status'],['空间范围','location']].map(([label,key])=>({label,value:r=>r[key]}));columns.push({label:'操作',value:()=>'',filterable:false,sortable:false});
+      const range=state.mapDateRanges[historyMapConfigs[kind].range],key=['history',kind,range.appliedStart,range.appliedEnd].join(':');
+      const table=window.WaterTable.render({key,columns,rows:records,pageSize:10,renderRow:r=>`<tr>${['time','id','object','metric','value','status','location'].map(k=>`<td>${escapeHtml(r[k])}</td>`).join('')}<td><button class="app-button app-button-link" type="button" data-action="history-select" data-history-kind="${kind}" data-value="${escapeHtml(r.key)}">地图定位</button></td></tr>`});
+      return `<section class="app-gis-bottom product-gis-bottom product-object-drawer product-history-bottom ${state.historyBottomOpen?'':'is-collapsed'}"><div class="app-gis-bottom-header product-bottom-drawer-header"><strong>历史记录</strong><button class="app-button app-button-text app-button-icon" type="button" data-action="toggle-history-bottom" aria-label="${state.historyBottomOpen?'收起历史记录':'展开历史记录'}">${state.historyBottomOpen?'⌄':'⌃'}</button></div>${state.historyBottomOpen?`<div class="app-gis-bottom-body product-history-table-body">${table}</div>`:''}</section>`;
+    }
     const count = Math.max(1, Math.ceil(records.length / state.historyPageSize));
     state.historyPage = Math.min(state.historyPage, count);
     const visible = records.slice((state.historyPage - 1) * state.historyPageSize, state.historyPage * state.historyPageSize);
@@ -2043,6 +2072,7 @@ ${state.layerStyleEditor?.context==="scada"?`<aside class="app-gis-panel product
   }
 
   function enhanceConfigurableTables(root) {
+    if(window.WaterTable){window.WaterTable.enhance(root);return;}
     [...root.querySelectorAll("table.app-table")].forEach((table, index) => {
       if (table.closest(".product-configurable-table")) return;
       const headers = [...table.querySelectorAll("thead th")];
@@ -2065,6 +2095,7 @@ ${state.layerStyleEditor?.context==="scada"?`<aside class="app-gis-panel product
   }
 
   function enhanceBottomTablePagination(root) {
+    if(window.WaterTable)return;
     const body = root.querySelector(".product-bottom-drawer-body");
     const table = body?.querySelector("table.app-table");
     if (!table?.tBodies.length) return;
@@ -2162,7 +2193,7 @@ ${state.layerStyleEditor?.context==="scada"?`<aside class="app-gis-panel product
     if (liveTopologyEditor && !["p04", "p07"].includes(state.page)) liveTopologyEditor.pause();
     workspace.classList.toggle('is-campus-project',isCampusProject());
     workspace.innerHTML = isCampusProject()&&isHydraulicPage(state.page)?renderCampusHydraulicPending():renderers[state.page]();
-    workspace.querySelectorAll('.product-current-data-scope').forEach(el=>{const bucket=topologyStore().dmaPlans?.[state.selectedTopology],plan=bucket?.items.find(p=>p.id===bucket.activeId);el.textContent=isCampusProject()?state.selectedTopology+' · '+(plan?.name||'假定分区')+(dmaDemoEnabled()?' · 演示数据':' · 未接入监测'):topologyReadModel.history?'历史拓扑 · 示例数据':state.selectedTopology+' · '+(plan?.name||'当前分区')+' · 示例数据';});
+    workspace.querySelectorAll('.product-current-data-scope').forEach(el=>{const bucket=topologyStore().dmaPlans?.[state.selectedTopology],plan=bucket?.items.find(p=>p.id===bucket.activeId);el.textContent=isCampusProject()?state.selectedTopology+' · '+(plan?.name||'假定分区')+(campusMeteringEnabled()?' · 预设设备 / 示例数据（非实测）':dmaDemoEnabled()?' · 演示数据':' · 未接入监测'):topologyReadModel.history?'历史拓扑 · 示例数据':state.selectedTopology+' · '+(plan?.name||'当前分区')+' · 示例数据';});
     if(!['p13h','p15h'].includes(state.page)) enhanceHistoryMap();
     const historyKind = ({ p06h: "dma", p10h: "data", p13h: "alarm", p15h: "work" })[state.page];
     const timeModeButton = document.getElementById("timeModeButton");
@@ -2186,6 +2217,7 @@ ${state.layerStyleEditor?.context==="scada"?`<aside class="app-gis-panel product
     document.querySelector('.unified-version-control').hidden=hydraulicPage;
     if(hydraulicPage){timeModeText.textContent='计算结果';globalTime.textContent='';}
     if(isCampusProject()){timeModeText.textContent=historyKind?'历史归档':'当前拓扑';globalTime.textContent='';}
+    if(campusMeteringEnabled()&&!hydraulicPage&&!historyKind){timeModeText.textContent='预设示例';globalTime.textContent='示例数据截至 '+window.CampusMetering.range.end;}
     applySchoolScope();
     window.WaterMapLayout.enhance(workspace);
     mountMapCameras();

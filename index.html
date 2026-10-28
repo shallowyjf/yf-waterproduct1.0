@@ -4,19 +4,21 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="description" content="城市供水管网 GIS + SCADA 运行管理平台" />
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
   <script src="theme.js"></script>
   <title>城市供水管网 GIS + SCADA</title>
-  <link rel="stylesheet" href="styles/prototype.css?v=20260911devices" />
+  <link rel="stylesheet" href="styles/prototype.css?v=20261027details" />
   <link rel="stylesheet" href="styles/device-binding.css?v=20260914topology" />
-  <link rel="stylesheet" href="styles/operations.css?v=20260915ops" />
+  <link rel="stylesheet" href="styles/operations.css?v=20261027details" />
   <link rel="stylesheet" href="styles/hydraulics.css" />
   <link rel="stylesheet" href="styles/dark-generated.css" />
   <link rel="stylesheet" href="styles/theme.css" />
   <link rel="stylesheet" href="styles/table-pagination.css" />
-  <link rel="stylesheet" href="styles/v2-platform.css">
-  <link rel="stylesheet" href="styles/map-layout.css?v=20261016clean">
-  <link rel="stylesheet" href="styles/standard-product.css?v=20261023layout">
-  <link rel="stylesheet" href="styles/user-hierarchy.css?v=20261015floors5">
+  <link rel="stylesheet" href="styles/table-component.css?v=20261028tables" />
+  <link rel="stylesheet" href="styles/v2-platform.css?v=20261028tables">
+  <link rel="stylesheet" href="styles/map-layout.css?v=20261027details">
+  <link rel="stylesheet" href="styles/standard-product.css?v=20261027meters">
+  <link rel="stylesheet" href="styles/user-hierarchy.css?v=20261027meters">
 </head>
 <body>
   <button class="theme-toggle theme-entry-switch" type="button" data-theme-toggle aria-label="切换到暗色">☾ 暗色</button>
@@ -53,41 +55,42 @@
   <div id="overlayRoot"></div>
   <div id="toastRoot" class="product-toast-root" aria-live="polite"></div>
   <script src="vendor/echarts.min.js?v=5.6.0"></script>
-  <script src="map-viewport.js?v=20260921perf"></script>
-  <script src="map-layout.js?v=20260916"></script>
+  <script src="map-viewport.js?v=20261027details"></script>
+  <script src="map-layout.js?v=20261027details"></script>
   <script src="city-topology.js?v=20260914terminal"></script>
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="standard-product.js?v=20261008"></script>
+  <script src="standard-product.js?v=20261027meters"></script>
   <script src="monitoring-history.js?v=20261009"></script>
-  <script src="monitoring-history-ui.js?v=20261009nightdaily"></script>
+  <script src="monitoring-history-ui.js?v=20261028tables"></script>
   <script src="dma-statistics.js?v=20261023layout"></script>
-  <script src="dma-demo.js?v=20261023campus2"></script>
-  <script src="standard-product-ui.js?v=20261023layout"></script>
+  <script src="dma-demo.js?v=20261027details"></script>
+  <script src="standard-product-ui.js?v=20261028tables"></script>
   <script src="dma-geometry.js?v=20261013corridor10m"></script>
-  <script src="topology-editor.js?v=20261027dma4"></script>
-  <script src="topology-map-data.js?v=20261027dma4"></script>
-  <script src="device-binding.js?v=20261009examples"></script>
+  <script src="topology-editor.js?v=20261028tables"></script>
+  <script src="topology-map-data.js?v=20261027meters"></script>
+  <script src="device-binding.js?v=20261028tables"></script>
   <script src="dma-plans.js?v=20261013corridor10m"></script>
   <script src="operations.js?v=20260915ops"></script>
   <script src="hangzhou-examples.js?v=20261009"></script>
-  <script src="operations-ui.js?v=20260915ops"></script>
+  <script src="operations-ui.js?v=20261028tables"></script>
   <script src="hydraulics-data.js?v=20260921"></script>
-  <script src="hydraulics-ui.js?v=20260921perf"></script>
+  <script src="hydraulics-ui.js?v=20261028tables"></script>
   <script src="v2-storage.js"></script>
   <script src="v2-platform.js"></script>
   <script src="v2-scenarios.js?v=20260921suizhou"></script>
   <script src="v2-review-pack.js?v=20260921suizhou"></script>
-  <script src="v2-scenario-workspace.js?v=20261015length2"></script>
+  <script src="v2-scenario-workspace.js?v=20261028tables"></script>
   <script src="result-archives.js?v=20260920"></script>
-  <script src="result-archives-ui.js?v=20260920"></script>
+  <script src="result-archives-ui.js?v=20261028tables"></script>
   <script src="data/suizhou-dataset.js?v=20260921"></script>
   <script src="suizhou-project.js?v=20260921"></script>
   <script src="data/campus-dataset.js?v=20261027dma4"></script>
   <script src="campus-project.js?v=20261027dma4"></script>
-  <script src="v2-platform-ui.js?v=20260921perf"></script>
-  <script src="table-pagination.js?v=20261015floors5"></script>
-  <script src="user-hierarchy.js?v=20261015floors5"></script>
+  <script src="campus-metering.js?v=20261027meters"></script>
+  <script src="v2-platform-ui.js?v=20261028tables"></script>
+  <script src="table-component.js?v=20261028tables"></script>
+  <script src="user-hierarchy.js?v=20261028tables"></script>
   <script src="school-access.js?v=20261023layout"></script>
-  <script src="app.js?v=20261027dma4c"></script>
+  <script src="app.js?v=20261028tables"></script>
 </body>
 </html>

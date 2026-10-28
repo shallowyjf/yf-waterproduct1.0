@@ -55,18 +55,44 @@ test('latest source removes obsolete nodes and keeps both components without fab
   assert.ok(s.nodes.every(n=>n.nodeKind==='JUNCTION'));
 });
 
-test('all nine node notes and the pipe 40 installation note remain visible in object details',()=>{
-  const s=C.snapshot(),model=window.TopologyMapData.build(s,editor(s));
+test('all nine node notes and the pipe 40 note remain stored without exposing source fields in details',()=>{
+  const s=C.snapshot(),e=editor(s),model=window.TopologyMapData.build(s,e);
   const notes={JS643:'开挖二级表，北侧入口',JS258:'开挖二级表-北侧入口待选',JS54:'二级表-南测入口',JS238:'二级表-北侧泵房入口',JS70:'二级表-食堂直供','19':'二级表-北侧楼顶楼','21':'北侧泵房-to宿舍 二级表','7':'二级表-幼儿园','27':'南教 二级表'};
   assert.deepEqual(s.nodes.filter(n=>n.sourceDescription.includes('二级表')).map(n=>n.id).sort(),Object.keys(notes).sort());
   for(const [id,description] of Object.entries(notes)){
     assert.equal(model.objects.get(id).sourceDescription,description);
-    assert.ok(window.TopologyMapData.detail(model,'asset',id).includes(description),id);
+    assert.doesNotMatch(window.TopologyMapData.detail(model,'asset',id),/源文件编号|源文件标注|源文件描述|源模型节点类型|原测绘坐标|安装标注/,id);
+    assert.doesNotMatch(e.detail(model.objects.get(id),false),/源文件编号|源文件描述|安装标注/,id);
   }
   const pipe=s.pipes.find(p=>p.sourceId==='40');
   assert.deepEqual([pipe.start,pipe.end,pipe.diameter,pipe.length],['JS641','28',200,5.783926796]);
   assert.match(pipe.sourceDescription,/二级表-垃圾房\+体育管\+花房/);
-  assert.ok(window.TopologyMapData.detail(model,'pipe',pipe.id).includes('二级表-垃圾房+体育管+花房'));
+  assert.equal(model.objects.get(pipe.id).sourceDescription,pipe.sourceDescription);
+  assert.doesNotMatch(window.TopologyMapData.detail(model,'pipe',pipe.id),/源文件编号|源文件标注|源文件描述|安装标注/);
+  assert.doesNotMatch(e.detail(pipe,false),/源文件编号|源文件描述|安装标注/);
+});
+
+test('point and pipe details use product fields even when imports contain unknown source attributes',()=>{
+  const s=C.snapshot(),node=s.nodes[0],pipe=s.pipes[0];
+  const sourceFields={sourceId:'SOURCE_RECORD_ONLY',sourceDescription:'SOURCE_DESCRIPTION_ONLY',sourceTag:'SOURCE_TAG_ONLY',
+    nodeKind:'SOURCE_NODE_KIND_ONLY',sourceX:123456789.123,sourceY:987654321.987,installationStatus:'SOURCE_INSTALLATION_ONLY',
+    vendorFields:{column:'UNKNOWN_VENDOR_COLUMN_ONLY'},futureImportField:'FUTURE_IMPORT_VALUE_ONLY'};
+  for(const o of [node,pipe])Object.assign(o,sourceFields);
+  const before=clone(s),e=editor(s),model=window.TopologyMapData.build(s,e);
+  for(const o of [node,pipe]){
+    const type=o.type==='pipe'?'pipe':'asset';
+    const pages=['basic','topology'].map(tab=>window.TopologyMapData.detail(model,type,o.id,tab));
+    for(const editing of [false,true]){e.s.editing=editing;pages.push(e.detail(o,false));}
+    for(const html of pages){
+      assert.ok(html.includes(o.id),o.id);
+      assert.match(html,/对象编号/);assert.match(html,/管径/);
+      assert.match(html,o.type==='pipe'?/管长/:/高程/);
+      assert.doesNotMatch(html,/SOURCE_|UNKNOWN_VENDOR_|FUTURE_IMPORT_|123456789\.123|987654321\.987/);
+      assert.doesNotMatch(html,/源文件编号|源文件标注|源文件描述|源模型节点类型|原测绘坐标|安装标注|vendorFields|futureImportField/);
+    }
+    for(const [key,value] of Object.entries(sourceFields))assert.deepEqual(model.objects.get(o.id)[key],value);
+  }
+  assert.deepEqual(s,before);
 });
 
 test('display uses the original metre coordinates with one scale and never guesses a CRS',()=>{

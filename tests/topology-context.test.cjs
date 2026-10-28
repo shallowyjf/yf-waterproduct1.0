@@ -14,7 +14,7 @@ test('sidebar entry uses the active version, not the largest or hardcoded T3',()
 test('explicit version entry retains its requested context',()=>{const c=routing();c.state.selectedTopology='T4';c.navigate('p12');assert.equal(c.state.selectedTopology,'T4');});
 test('topology navigation order is version, editor, devices',()=>{const line=source.split('\n').find(l=>l.includes('id: "topology",'));assert.ok(line.indexOf('拓扑版本管理')<line.indexOf('拓扑编辑器'));assert.ok(line.indexOf('拓扑编辑器')<line.indexOf('拓扑设备管理'));assert.match(source,/data-action="topology-devices" data-value="\$\{t.id\}"/);});
 function comparison(before,after,bindings=[],selected=null){
- const c={state:{selectedTopology:'T9',compareBaseline:'T3',p08Selected:selected},topologyStore:()=>({versions:[{id:'T3',name:'基准'},{id:'T9',name:'当前'}],bindings}),compareSnapshot:()=>before,topologyReadRenderer:{s:{data:after}},escapeHtml:x=>String(x??''),pageHeader:()=>''};
+ const c={state:{selectedTopology:'T9',compareBaseline:'T3',p08Selected:selected},topologyStore:()=>({versions:[{id:'T3',name:'基准'},{id:'T9',name:'当前'}],bindings}),compareSnapshot:()=>before,topologyReadRenderer:{s:{data:after},coords(p){return [this.s.data.nodes.find(n=>n.id===p.start),this.s.data.nodes.find(n=>n.id===p.end)];}},escapeHtml:x=>String(x??''),lengthText:v=>String(v),pageHeader:()=>''};
  vm.createContext(c);vm.runInContext(section('renderVersionComparison','renderP08'),c);return c.renderVersionComparison(true);
 }
 test('comparison has zero differences for identical saved data',()=>{const d={nodes:[{id:'N1',x:1}],pipes:[],zones:[]};assert.match(comparison(d,d),/对象差异 · 0/);});
@@ -22,3 +22,35 @@ test('comparison identifies real additions, deletions and changed fields',()=>{c
 test('equal group counts still detect device and aggregation rule changes',()=>{const data={nodes:[],pipes:[],zones:[]},bindings=[{key:'T3|N1|flow',devices:['D1'],rule:'sum'},{key:'T9|N1|flow',devices:['D2'],rule:'average'}];const html=comparison(data,data,bindings,'binding:N1|flow');for(const text of ['挂接差异 · 1','设备集合','处理规则','加和','平均','D1','D2'])assert.ok(html.includes(text),text);});
 test('device set ordering and revision metadata do not produce false differences',()=>{const data={nodes:[],pipes:[],zones:[]};assert.match(comparison(data,data,[{key:'T3|N1|flow',devices:['D1','D2'],rule:'sum',revision:1},{key:'T9|N1|flow',devices:['D2','D1'],rule:'sum',revision:4}]),/挂接差异 · 0/);});
 test('unchanged objects expose translated attributes',()=>{const data={nodes:[{id:'N1',type:'cap',x:10,y:20}],pipes:[],zones:[]};const html=comparison(data,data,[],'N1');assert.match(html,/未变化 · 属性对照/);assert.match(html,/对象类型/);assert.match(html,/堵头/);});
+
+test('source-only changes do not create product differences or leak into attribute comparison',()=>{
+ const before={nodes:[{id:'N1',name:'产品节点',type:'node',x:10,y:20,diameter:200,sourceId:'SOURCE_ID_BEFORE',sourceDescription:'SOURCE_DESCRIPTION_BEFORE',sourceTag:'SOURCE_TAG_BEFORE',nodeKind:'SOURCE_KIND_BEFORE',sourceX:123456789.123,sourceY:987654321.987,installationStatus:'SOURCE_INSTALLATION_BEFORE',vendorFields:{column:'UNKNOWN_VENDOR_BEFORE'}}],pipes:[],zones:[]};
+ const after=JSON.parse(JSON.stringify(before));
+ Object.assign(after.nodes[0],{sourceId:'SOURCE_ID_AFTER',sourceDescription:'SOURCE_DESCRIPTION_AFTER',sourceTag:'SOURCE_TAG_AFTER',nodeKind:'SOURCE_KIND_AFTER',sourceX:123456789.456,sourceY:987654321.654,installationStatus:'SOURCE_INSTALLATION_AFTER',vendorFields:{column:'UNKNOWN_VENDOR_AFTER'},futureImportField:'FUTURE_IMPORT_ONLY'});
+ const saved=JSON.stringify([before,after]),html=comparison(before,after,[],'N1');
+ assert.match(html,/对象差异 · 0/);assert.match(html,/未变化 · 属性对照/);
+ for(const field of ['对象编号','名称','对象类型','X 坐标','Y 坐标','管径（mm）','产品节点'])assert.ok(html.includes(field),field);
+ assert.doesNotMatch(html,/sourceId|sourceDescription|sourceTag|nodeKind|sourceX|sourceY|installationStatus|vendorFields|futureImportField|SOURCE_|UNKNOWN_VENDOR_|FUTURE_IMPORT_|123456789|987654321/);
+ assert.equal(JSON.stringify([before,after]),saved);
+});
+
+test('product changes, additions and deletions remain visible while raw fields stay hidden',()=>{
+ const before={nodes:[{id:'N1',name:'原节点',type:'node',x:10,y:20,diameter:100,vendorFields:'UNKNOWN_VENDOR_BEFORE'},{id:'OLD',name:'删除节点',type:'node',x:30,y:40,sourceDescription:'SOURCE_DELETED_ONLY'}],pipes:[],zones:[]};
+ const after={nodes:[{id:'N1',name:'更新节点',type:'node',x:11,y:20,diameter:200,vendorFields:'UNKNOWN_VENDOR_AFTER'},{id:'NEW',name:'新增节点',type:'node',x:50,y:60,futureImportField:'FUTURE_IMPORT_ADDED_ONLY'}],pipes:[],zones:[]};
+ for(const [id,change] of [['N1','修改'],['OLD','删除'],['NEW','新增']]){
+  const html=comparison(before,after,[],id);
+  assert.match(html,/对象差异 · 3/);assert.ok(html.includes(id+' · '+change+' · 属性对照'));
+  assert.match(html,/对象编号/);assert.match(html,/名称/);
+  assert.doesNotMatch(html,/sourceDescription|vendorFields|futureImportField|SOURCE_|UNKNOWN_VENDOR_|FUTURE_IMPORT_/);
+  if(id==='N1')for(const field of ['名称 · 变化','X 坐标 · 变化','管径（mm） · 变化','原节点','更新节点'])assert.ok(html.includes(field),field);
+ }
+});
+
+test('pipe path changes remain product differences without exposing source geometry',()=>{
+ const before={nodes:[{id:'N1',type:'node',x:0,y:0},{id:'N2',type:'node',x:20,y:0}],pipes:[{id:'P1',name:'产品管线',type:'pipe',start:'N1',end:'N2',diameter:200,length:20,geometry:[{x:0,y:0},{x:10,y:0},{x:20,y:0}],sourceGeometry:[[123456789,987654321]],vendorFields:'UNKNOWN_VENDOR_PIPE'}],zones:[]};
+ const after=JSON.parse(JSON.stringify(before));after.pipes[0].geometry[1].y=5;after.pipes[0].sourceGeometry=[[123456789,987654322]];
+ const html=comparison(before,after,[],'P1');
+ assert.match(html,/对象差异 · 1/);assert.match(html,/P1 · 修改 · 属性对照/);
+ assert.match(html,/管线路径 · 变化/);assert.match(html,/X：10，Y：5/);assert.match(html,/管长（m）/);
+ assert.doesNotMatch(html,/sourceGeometry|vendorFields|UNKNOWN_VENDOR_|123456789|98765432/);
+});

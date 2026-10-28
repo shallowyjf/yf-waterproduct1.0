@@ -142,29 +142,41 @@ test('a pre-NET historical topology is backed up once and receives the current f
   assert.equal(p.initialize(st),false);
 });
 
-test('the DMA map overview renders the actual user scope and inlet/outlet boundary fields',()=>{
+test('the DMA map overview shows current asset statistics without scope or boundary descriptions',()=>{
   const app=fs.readFileSync(path.join(__dirname,'../app.js'),'utf8');
   const start=app.indexOf('  function p02DmaDrawerContent(dma) {');
   const end=app.indexOf('\n  function p02ObjectDrawerContent',start);
   assert.ok(start>=0&&end>start);
-  const context={window:{DMAStatistics:{days:()=>31}},state:{p02DrawerTab:'basic'},
+  const original=JSON.stringify(D.snapshot),metering=require('../campus-metering.js');
+  const context={window:{DMAStatistics:{days:()=>31},WaterStandard:require('../standard-product.js'),WaterUserHierarchy:{summary:(_data,id)=>({children:metering.hierarchy(id)?.children.length||0})}},state:{p02DrawerTab:'basic'},topologyReadModel:{data:D.snapshot},lengthText:value=>value.toFixed(2),
     dmaMetadataEditable:()=>false,dmaSelectedMonth:()=> '2026-10',
     dmaQuantity:value=>value==null?'—':String(value),
     dmaDeviceSummary:()=>({count:0,pressureCount:0,pressureTotal:0}),
     escapeHtml:value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),
-    findDma:id=>D.snapshot.zones.find(z=>z.id===id),dmaDemoEnabled:()=>false};
+    findDma:id=>D.snapshot.zones.find(z=>z.id===id),dmaDemoEnabled:()=>false,campusMeteringEnabled:()=>false};
   vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../topology-map-data.js'),'utf8'),context);
+  const summaryStart=app.indexOf('  function dmaAssetSummary(zone) {'),summaryEnd=app.indexOf('\n  function ',summaryStart+1);
+  context.dmaAssetSummary=vm.runInNewContext('('+app.slice(summaryStart,summaryEnd).trim()+')',context);
   const render=vm.runInNewContext('('+app.slice(start,end).trim()+')',context);
   const renderedField=(label,value)=>`<div class="app-description-label">${label}</div><div class="app-description-value">${value}</div>`;
-  for(const zone of D.snapshot.zones){
+  const expected=[{valves:0,users:4,children:0,pumps:0,pipes:12,length:'577.77'},{valves:3,users:4,children:30,pumps:3,pipes:27,length:'318.18'},{valves:7,users:2,children:0,pumps:1,pipes:29,length:'633.33'},{valves:6,users:3,children:30,pumps:0,pipes:21,length:'329.08'}];
+  for(const [i,zone]of D.snapshot.zones.entries()){
     const html=render(zone);
-    assert.ok(html.includes(renderedField('范围说明',zone.note)),zone.id+' scope');
-    assert.ok(html.includes(renderedField('起点节点',zone.inletNodeIds.join('、'))),zone.id+' inlet');
-    assert.ok(html.indexOf('范围说明')<html.indexOf('product-dma-kpis'),'scope is visible before monitoring values');
+    assert.doesNotMatch(html,/范围说明|起点节点|出口交界节点|共用边界节点|分区 ID|分区层级|上级分区|成员点/);
+    for(const [label,key,unit]of [['阀门数量','valves',' 个'],['用户端数量','users',' 个'],['下级用户数量','children',' 个'],['泵站数量','pumps',' 个'],['管线数量','pipes',' 条'],['管线总长','length',' m']])assert.ok(html.includes(renderedField(label,expected[i][key]+unit)),zone.id+' '+label);
+    assert.match(html,/分区用水量|平均压力|分区营收水量/);
   }
-  assert.ok(render(D.snapshot.zones.find(z=>z.id==='DMA-03')).includes(renderedField('出口交界节点','1')));
-  assert.ok(render(D.snapshot.zones.find(z=>z.id==='DMA-04')).includes(renderedField('共用边界节点','1')));
-  assert.ok(!render({...D.snapshot.zones[0],definitionSource:undefined}).includes('范围说明'),'legacy zones keep their existing overview');
+  assert.ok(!render({...D.snapshot.zones[0],definitionSource:undefined}).includes('范围说明'),'all overview variants show statistics');
+  context.campusMeteringEnabled=()=>true;
+  context.window.CampusMetering=require('../campus-metering.js');
+  const planned=render(D.snapshot.zones.find(z=>z.id==='DMA-04'));
+  assert.match(planned,/预设设备 · 示例数据（非实测）/);
+  assert.doesNotMatch(planned,/三个三级总表合计估算/);
   context.state.p02DrawerTab='metrics';
   assert.ok(!render(D.snapshot.zones[0]).includes('范围说明'),'metering detail retains its separate content');
+  const users=D.snapshot.nodes.filter(n=>n.type==='user'),pipe=D.snapshot.pipes[0];
+  context.topologyReadModel.data={...D.snapshot,nodes:[users[0],{id:'HYD',type:'user',userSubtype:'FIRE_HYDRANT'},{id:'V',type:'valve'}],pipes:[{...pipe,length:null}]};
+  const stats=context.dmaAssetSummary({nodeIds:[users[0].id,users[0].id,'HYD','V','DELETED'],pipeIds:[pipe.id,pipe.id,'DELETED']});
+  assert.equal(stats.users,1);assert.equal(stats.hydrants,1);assert.equal(stats.valves,1);assert.equal(stats.pipes,1);assert.equal(stats.length,null,'missing length cannot become zero or a fabricated total');
+  assert.equal(JSON.stringify(D.snapshot),original);
 });

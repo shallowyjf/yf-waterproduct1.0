@@ -18,7 +18,7 @@
           const unit = point.type === 'pressure' ? 'MPa' : 'm³/h';
           model.monitors.push({...point, zoneIds:model.zoneFor(point.hostId), unit,
             value:point.numeric+' '+unit, quality:'GOOD', sampleTime:stamp, source,
-            location:(host.sourceId || host.id)+' · '+host.name, x:pos[0], y:pos[1]});
+            location:host.id+' · '+host.name, x:pos[0], y:pos[1]});
         }
         return;
       }

@@ -65,15 +65,15 @@
       const z=model.zones.find(z=>z.id===id);if(!z)return '<div class="app-empty">所选拓扑中无此分区</div>';
       if(tab==='metrics'){const b=z.balance||{},fmt=v=>v==null||v===''?'—':typeof v==='number'?v.toFixed(3):v;return fields([['统计月份',b.date||'—'],['流入总量（m³）',fmt(b.inlet)],['流出总量（m³）',fmt(b.outlet)],['储水增加量（m³）',fmt(b.storage)],['供水基数（m³）',fmt(b.basis)],['收费售水（m³）',fmt(b.billed)],['合法未收费（m³）',fmt(b.unbilled)],['统计差额（m³）',fmt(b.loss)],['漏损率',z.leakage],['夜间统计日期',z.nightDaily?.date||'—'],['当日夜间平均流量（m³/h）',fmt(z.nightDaily?.night)],['夜间时段','02:00–05:00']])+`<button class="app-button app-button-primary u-w-full" data-action="dma-leakage-trend" data-value="${esc(z.id)}">查看趋势</button><button class="app-button u-w-full" data-action="dma-leakage-trend" data-metric="night" data-value="${esc(z.id)}">查看每日夜间流量</button>`;}
       if(tab==='history')return '<div class="app-empty">该拓扑快照未附带分区运行归档</div>';
-      return fields([['分区编号',z.id],['分区名称',z.name],['成员点',z.nodeIds.length],['成员线',z.pipeIds.length],['成员管长',`${(z.length/1000).toFixed(2)} km`],['边界管线',z.boundaries.length],['形状',z.boundaryMode==='pipe-corridor'?'沿管路收紧的外接多边形':z.boundary?.length?'外接多边形（允许凹边界）':'成员外接多边形'],...(z.boundaryWidthM?[["包络总宽度",z.boundaryWidthM+' m（常规管段两侧各 '+z.boundaryWidthM/2+' m）'],["分区面积",Number.isFinite(z.boundaryAreaM2)?z.boundaryAreaM2.toFixed(1)+' m²':'—'],["边界规则",z.boundaryNote||'相邻分区交界处共边裁切']]:[]),...(z.hypothetical&&z.definitionSource!=='user'?[["方案性质","假定分区 · 待现场核实"],["包含建筑",(z.buildings||[]).join('、')],["假定入口",(z.inletPipeIds||[]).map(id=>model.objects.get(id)?.sourceId||id).join('、')||'—'],["假定出口",(z.outletPipeIds||[]).map(id=>model.objects.get(id)?.sourceId||id).join('、')||'无'],["分区说明",z.note||'计量尚未接入']]:[])])
+      return fields([['分区编号',z.id],['分区名称',z.name],['成员点',z.nodeIds.length],['成员线',z.pipeIds.length],['成员管长',`${(z.length/1000).toFixed(2)} km`],['边界管线',z.boundaries.length],['形状',z.boundaryMode==='pipe-corridor'?'沿管路收紧的外接多边形':z.boundary?.length?'外接多边形（允许凹边界）':'成员外接多边形'],...(z.boundaryWidthM?[["包络总宽度",z.boundaryWidthM+' m（常规管段两侧各 '+z.boundaryWidthM/2+' m）'],["分区面积",Number.isFinite(z.boundaryAreaM2)?z.boundaryAreaM2.toFixed(1)+' m²':'—'],["边界规则",z.boundaryNote||'相邻分区交界处共边裁切']]:[]),...(z.hypothetical&&z.definitionSource!=='user'?[["方案性质","假定分区 · 待现场核实"],["包含建筑",(z.buildings||[]).join('、')],["假定入口",(z.inletPipeIds||[]).join('、')||'—'],["假定出口",(z.outletPipeIds||[]).join('、')||'无'],["分区说明",z.note||'计量尚未接入']]:[])])
         +(z.definitionSource==='user'?fields([['方案性质','用户指定范围 · 计量待接入'],['包含建筑',(z.buildings||[]).join('、')],['起点节点',(z.inletNodeIds||[]).join('、')||'—'],['出口交界节点',(z.outletNodeIds||[]).join('、')||'无'],['共用边界节点',(z.boundaryNodeIds||[]).join('、')||'无'],['分区说明',z.note||'']]):'')
         +related('挂接监测点',model.monitors.filter(m=>m.zoneIds.includes(z.id)).map(m=>link(m.id,`${m.name} · ${m.location}`,'select-monitor')),'暂无挂接监测点')
         +related('边界管线',z.boundaries.map(id=>objectLink(id)),'无边界管线');
     }
     if(m){
       if(tab==='history')return '<div class="app-empty">请从监测历史记录查看归档数据</div>';
-      if(tab==='metrics')return fields([['监测点',m.id],['监测值',m.value],['质量码',m.quality]]);
-      return fields([['监测点',m.id],['名称',m.name],['挂接位置',m.location],['监测值',m.value],['质量码',m.quality]])
+      if(tab==='metrics')return fields([['监测点',m.id],['监测值',m.value],['质量码',m.quality],...(m.demo?[['数据性质','预设设备 · 示例数据（非实测）'],['示例采样时间',m.sampleTime]]:[])]);
+      return fields([['监测点',m.id],['名称',m.name],['挂接位置',m.location],['监测值',m.value],['质量码',m.quality],...(m.demo?[['设备状态','预设待安装'],['数据性质','示例数据（非实测）'],['示例采样时间',m.sampleTime]]:[])])
         +related('挂接对象',[objectLink(m.hostId)])+zones(m.zoneIds)+(m.devices||[]).map(id=>`<button class="app-button" data-action="standard-device-data" data-value="${esc(id)}">${esc(id)} · 查看数据</button>`).join('');
     }
     if(event){
@@ -90,13 +90,7 @@
     const measure=(v,unit)=>v==null?'—':`${v} ${unit}`;
     if(o.type==='pipe')rows.push(['管径',o.diameter?`DN${o.diameter}`:'—'],['材质',o.material||'—'],['管长',`${lengthText(o.length)}${o.length==null?'':' m'}`],['起点高程',measure(o.startElevation,'m')],['终点高程',measure(o.endElevation,'m')]);
     else rows.push(['坐标',`${o.x}, ${o.y}`],['高程',measure(o.elevation,'m')],['管径',o.diameter?`DN${o.diameter}`:'—']);
-    if(o.sourceId)rows.push(['源文件编号',o.sourceId]);
-    if(o.sourceTag)rows.push(['源文件标注',o.sourceTag]);
-    if(o.sourceDescription)rows.push(['源文件描述',o.sourceDescription]);
-    if(o.installationStatus)rows.push(['安装标注',o.installationStatus]);
-    if(o.nodeKind)rows.push(['源模型节点类型',o.nodeKind]);
-    if(o.nodeKind==='RESERVOIR')rows.push(['水源总水头',o.headStatus==='待设置'?'待设置（源文件 0 m 为占位）':measure(o.headM,'m')]);
-    if(Number.isFinite(o.sourceX)&&Number.isFinite(o.sourceY))rows.push(['原测绘坐标',o.sourceX+', '+o.sourceY],['坐标系','测绘局部坐标，CRS 未知']);
+    if(o.nodeKind==='RESERVOIR')rows.push(['水源总水头',o.headStatus==='待设置'?'待设置':measure(o.headM,'m')]);
     return fields(rows)+(o.type==='pipe'?related('连接节点',[objectLink(o.start,'起点 · '),objectLink(o.end,'终点 · ')]):related('连接管线',ps.map(p=>link(p.id,`${p.name} · DN${p.diameter}`,'select-pipe')),'无连接管线'))
       +zones(model.zoneFor(id))+(window.WaterUserHierarchy?.render(model.data,id)||'');
   }

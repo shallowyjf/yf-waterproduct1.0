@@ -11,3 +11,19 @@ test('hydrant alarms deduplicate and normal outflow is not illegal use',()=>{con
 test('sample queries keep states and time boundaries, CSV escapes formula text',()=>{const d={samples:[{metric:'outflow',time:'2026-10-08T01:00',value:'出水'},{metric:'pressure',time:'2026-10-08T02:00',value:.3}]};assert.equal(S.samples(d,'outflow','2026-10-08T00:00','2026-10-08T01:00')[0].value,'出水');assert.match(S.csv([['=1+1',3]]),/'=1\+1/);});
 
 test('measurement type cannot bypass noise host rules and RTU has no aggregate binding',()=>{assert.throws(()=>S.validateDevice({id:'NO-3',name:'错误类型',type:'flow',metric:'noise',unit:'dB',hostId:'N'},[],model),/类型与主指标/);assert.throws(()=>S.validateDevice({id:'RT-1',name:'RTU',type:'rtu',hostId:'N'},[],model),/下挂设备/);});
+
+test('a preset noise instrument permits only its explicitly planned physical point',()=>{
+  const d={id:'PLAN-NO',name:'规划噪声仪',type:'noise',preset:true,demo:true,installationPlanId:'K1',plannedHostId:'N',hostId:'N',topologyId:'T-CAMPUS'};
+  assert.equal(S.hostError(d,model.objects.get('N')),'');
+  assert.equal(S.validateDevice(d,[],model).hostId,'N');
+  assert.match(S.hostError(d,model.objects.get('U')),/规划安装点/);
+  for(const changed of [{preset:false},{demo:false},{installationPlanId:''},{topologyId:''},{plannedHostId:'U'}])assert.match(S.hostError({...d,...changed},model.objects.get('N')),/阀门/);
+  for(const type of ['pipe','zone'])assert.match(S.hostError(d,{id:'N',type}),/阀门/);
+  const p=S.previewImport([{'设备编号':d.id,'设备名称':'修改名称','设备类型':'噪声仪','宿主编号':'N'}],[d],model,'更新');
+  assert.equal(p.valid,true);assert.equal(S.commitImport(p,[d],model)[0].plannedHostId,'N');
+});
+
+test('minute precision end times include the final sample seconds of that minute',()=>{
+  const d={samples:[{time:'2026-10-26 23:59:59',metric:'volume',value:124},{time:'2026-10-27 00:00:00',metric:'volume',value:125}]};
+  assert.deepEqual(S.samples(d,'volume','2026-10-26T00:00','2026-10-26T23:59').map(x=>x.value),[124]);
+});
